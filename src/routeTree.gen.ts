@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AlcanceRouteImport } from './routes/alcance'
 import { Route as AnalisisRouteImport } from './routes/analisis'
+import { Route as EnumeracionRouteImport } from './routes/enumeracion'
 import { Route as ExplotacionRouteImport } from './routes/explotacion'
 import { Route as InformeRouteImport } from './routes/informe'
 import { Route as PostExplotacionRouteImport } from './routes/post-explotacion'
@@ -31,6 +32,11 @@ const AlcanceRoute = AlcanceRouteImport.update({
 const AnalisisRoute = AnalisisRouteImport.update({
   id: '/analisis',
   path: '/analisis',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EnumeracionRoute = EnumeracionRouteImport.update({
+  id: '/enumeracion',
+  path: '/enumeracion',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ExplotacionRoute = ExplotacionRouteImport.update({
@@ -63,6 +69,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/alcance': typeof AlcanceRoute
   '/analisis': typeof AnalisisRoute
+  '/enumeracion': typeof EnumeracionRoute
   '/explotacion': typeof ExplotacionRoute
   '/informe': typeof InformeRoute
   '/post-explotacion': typeof PostExplotacionRoute
@@ -73,6 +80,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/alcance': typeof AlcanceRoute
   '/analisis': typeof AnalisisRoute
+  '/enumeracion': typeof EnumeracionRoute
   '/explotacion': typeof ExplotacionRoute
   '/informe': typeof InformeRoute
   '/post-explotacion': typeof PostExplotacionRoute
@@ -84,6 +92,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/alcance': typeof AlcanceRoute
   '/analisis': typeof AnalisisRoute
+  '/enumeracion': typeof EnumeracionRoute
   '/explotacion': typeof ExplotacionRoute
   '/informe': typeof InformeRoute
   '/post-explotacion': typeof PostExplotacionRoute
@@ -96,6 +105,7 @@ export interface FileRouteTypes {
     | '/'
     | '/alcance'
     | '/analisis'
+    | '/enumeracion'
     | '/explotacion'
     | '/informe'
     | '/post-explotacion'
@@ -106,6 +116,7 @@ export interface FileRouteTypes {
     | '/'
     | '/alcance'
     | '/analisis'
+    | '/enumeracion'
     | '/explotacion'
     | '/informe'
     | '/post-explotacion'
@@ -116,6 +127,7 @@ export interface FileRouteTypes {
     | '/'
     | '/alcance'
     | '/analisis'
+    | '/enumeracion'
     | '/explotacion'
     | '/informe'
     | '/post-explotacion'
@@ -127,6 +139,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AlcanceRoute: typeof AlcanceRoute
   AnalisisRoute: typeof AnalisisRoute
+  EnumeracionRoute: typeof EnumeracionRoute
   ExplotacionRoute: typeof ExplotacionRoute
   InformeRoute: typeof InformeRoute
   PostExplotacionRoute: typeof PostExplotacionRoute
@@ -155,6 +168,13 @@ declare module '@tanstack/react-router' {
       path: '/analisis'
       fullPath: '/analisis'
       preLoaderRoute: typeof AnalisisRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/enumeracion': {
+      id: '/enumeracion'
+      path: '/enumeracion'
+      fullPath: '/enumeracion'
+      preLoaderRoute: typeof EnumeracionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/explotacion': {
@@ -199,6 +219,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AlcanceRoute: AlcanceRoute,
   AnalisisRoute: AnalisisRoute,
+  EnumeracionRoute: EnumeracionRoute,
   ExplotacionRoute: ExplotacionRoute,
   InformeRoute: InformeRoute,
   PostExplotacionRoute: PostExplotacionRoute,

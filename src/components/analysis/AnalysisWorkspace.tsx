@@ -605,7 +605,7 @@ export function AnalysisWorkspace() {
 								<p className="text-sm">
 									Aún no hay servicios abiertos guardados. Ejecuta Nmap o
 									importa un reporte en{" "}
-									<Link to="/" className="underline">
+									<Link to="/enumeracion" className="underline">
 										Enumeración
 									</Link>
 									.

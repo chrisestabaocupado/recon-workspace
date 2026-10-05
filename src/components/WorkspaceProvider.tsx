@@ -593,7 +593,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 			{execution && isActiveJob(execution.state) && (
 				<div className="fixed bottom-3 right-3 z-40 flex max-w-[calc(100vw-1.5rem)] items-center gap-3 rounded-xl border bg-card px-4 py-3 shadow-xl">
 					<LoaderCircle className="size-4 shrink-0 animate-spin text-primary" />
-					<Link to="/" className="min-w-0 text-xs hover:underline">
+					<Link to="/enumeracion" className="min-w-0 text-xs hover:underline">
 						<span className="block truncate font-medium">
 							Nmap ·{" "}
 							{workspace.projects.find(

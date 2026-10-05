@@ -23,10 +23,10 @@ export function PhasePage({
 				</div>
 				<div>
 					<div className="text-sm font-semibold tracking-tight">
-						Enumeración
+						Pentest workspace
 					</div>
 					<div className="text-[11px] text-muted-foreground">
-						Pentest workspace
+						Proyectos y fases de evaluación
 					</div>
 				</div>
 				<div className="ml-auto">

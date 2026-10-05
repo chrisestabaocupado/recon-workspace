@@ -1,3 +1,4 @@
+import { useNavigate } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { useState } from "react";
 import { newScopePlan } from "../lib/scope.ts";
@@ -42,6 +43,7 @@ export function NewProjectButton({
 }
 
 export function NewProjectDialog() {
+	const navigate = useNavigate();
 	const {
 		workspace,
 		setWorkspace,
@@ -89,6 +91,7 @@ export function NewProjectDialog() {
 				selectedProjectId: project.id,
 			}));
 			close(false);
+			void navigate({ to: "/alcance" });
 		} catch (e) {
 			setError(
 				e instanceof Error ? e.message : "No se pudo crear el proyecto.",

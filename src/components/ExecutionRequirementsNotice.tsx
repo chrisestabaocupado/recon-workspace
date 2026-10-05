@@ -17,7 +17,7 @@ export function ExecutionRequirementsNotice() {
 		setKaliDialogOpen,
 	} = useWorkspace();
 	const module =
-		pathname === "/"
+		pathname === "/enumeracion"
 			? "Enumeración"
 			: pathname === "/reconocimiento"
 				? "Reconocimiento"

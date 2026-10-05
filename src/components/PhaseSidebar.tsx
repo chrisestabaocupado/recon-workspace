@@ -4,6 +4,7 @@ import {
 	BookOpenCheck,
 	Crosshair,
 	FileText,
+	LayoutDashboard,
 	Radar,
 	ScanSearch,
 	ShieldAlert,
@@ -11,8 +12,9 @@ import {
 } from "lucide-react";
 import { Badge } from "#/components/ui/badge";
 import { NewProjectButton } from "./ProjectCreation";
+import { useWorkspace } from "./WorkspaceProvider";
 
-const phases = [
+export const phases = [
 	{
 		to: "/alcance",
 		label: "Alcance y planificación",
@@ -25,7 +27,7 @@ const phases = [
 		icon: Radar,
 		status: null,
 	},
-	{ to: "/", label: "Enumeración", icon: ScanSearch, status: null },
+	{ to: "/enumeracion", label: "Enumeración", icon: ScanSearch, status: null },
 	{
 		to: "/analisis",
 		label: "Análisis de vulnerabilidades",
@@ -48,12 +50,22 @@ const phases = [
 ] as const;
 
 export function PhaseSidebar() {
+	const { workspace } = useWorkspace();
+	const project = workspace.projects.find(
+		(item) => item.id === workspace.selectedProjectId,
+	);
 	const pathname = useRouterState({
 		select: (state) => state.location.pathname,
 	});
 
 	return (
 		<div className="min-w-0">
+			<Link
+				to="/"
+				className="mb-4 flex items-center gap-3 rounded-md px-3 py-3 text-sm text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+			>
+				<LayoutDashboard className="size-4" /> Proyectos
+			</Link>
 			<NewProjectButton className="mb-6 w-full justify-start" />
 			<Link
 				to="/preparacion"
@@ -66,6 +78,11 @@ export function PhaseSidebar() {
 			<div className="mb-3 px-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
 				Fases del pentesting
 			</div>
+			{project && (
+				<div className="mb-3 break-words px-2 text-sm font-medium">
+					{project.name}
+				</div>
+			)}
 			<nav
 				aria-label="Fases del pentesting"
 				className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1"
@@ -125,6 +142,12 @@ export function PhaseMobileNav() {
 			aria-label="Fases del pentesting"
 			className="flex min-w-0 max-w-full shrink-0 gap-1 overflow-x-auto border-b bg-background px-3 py-2 md:hidden"
 		>
+			<Link
+				to="/"
+				className="shrink-0 rounded-md px-2.5 py-2 text-xs text-muted-foreground hover:bg-muted"
+			>
+				Proyectos
+			</Link>
 			<NewProjectButton className="shrink-0 text-xs" />
 			<Link
 				to="/preparacion"

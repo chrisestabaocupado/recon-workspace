@@ -831,7 +831,7 @@ function ProjectPlan({
 							Eliminar proyecto
 						</Button>
 						<Button variant="outline" disabled={dirty} asChild>
-							<Link to="/">Ir a Enumeración</Link>
+							<Link to="/enumeracion">Ir a Enumeración</Link>
 						</Button>
 					</div>
 					{readiness.length > 0 && (

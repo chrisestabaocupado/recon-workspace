@@ -16,7 +16,7 @@ const details: Record<
 		description: string;
 		purpose: string;
 		next: string;
-		nextPath: "/" | "/alcance";
+		nextPath: "/enumeracion" | "/alcance";
 	}
 > = {
 	"Alcance y planificación": {
@@ -25,7 +25,7 @@ const details: Record<
 		purpose:
 			"Aquí se organizarán los proyectos, ventanas de prueba, exclusiones y contactos de emergencia.",
 		next: "Ir a Enumeración",
-		nextPath: "/",
+		nextPath: "/enumeracion",
 	},
 	Reconocimiento: {
 		description:
@@ -41,7 +41,7 @@ const details: Record<
 		purpose:
 			"Se mostrarán hallazgos como observaciones verificables, con origen, evidencia y prioridad revisable.",
 		next: "Abrir Enumeración",
-		nextPath: "/",
+		nextPath: "/enumeracion",
 	},
 	Explotación: {
 		description:
@@ -65,7 +65,7 @@ const details: Record<
 		purpose:
 			"La exportación de informes se añadirá después de normalizar los resultados de las fases anteriores.",
 		next: "Abrir Enumeración",
-		nextPath: "/",
+		nextPath: "/enumeracion",
 	},
 };
 
