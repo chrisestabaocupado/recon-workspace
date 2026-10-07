@@ -5,6 +5,7 @@ import net, { isIP } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { StringDecoder } from "node:string_decoder";
+import { nvdUrl } from "../lib/nvd.mjs";
 import { parseNiktoTarget } from "../lib/web-target.mjs";
 
 const LIMIT = 2 * 1024 * 1024;
@@ -295,15 +296,20 @@ export function runTool(bin, args, timeoutMs, cwd, spawnTool = spawn) {
 		child.on("close", (code) => done(code));
 	});
 }
-export async function localCve(endpoint, timeoutMs) {
-	const response = await fetch(`http://127.0.0.1:5000/api/${endpoint}`, {
+export async function cveResponse(url, timeoutMs, fetcher = fetch) {
+	const response = await fetcher(url, {
 		signal: AbortSignal.timeout(timeoutMs),
 		redirect: "error",
+		headers: { Accept: "application/json" },
 	});
 	if (!response.ok)
 		throw new Error(
-			`cve-search local respondió HTTP ${response.status}. Comprueba la API en Kali (127.0.0.1:5000).`,
+			url.startsWith("https://services.nvd.nist.gov/")
+				? `NVD respondió HTTP ${response.status}. ${[403, 429].includes(response.status) ? "Límite de solicitudes o acceso restringido; espera al menos 30 segundos antes de reintentar." : "Comprueba la conexión HTTPS desde Kali y vuelve a intentar."}`
+				: `cve-search local respondió HTTP ${response.status}. Comprueba la API en Kali (127.0.0.1:5000).`,
 		);
+	if (!response.body)
+		throw new Error("La fuente CVE devolvió una respuesta sin contenido.");
 	const reader = response.body.getReader();
 	let bytes = 0;
 	const chunks = [];
@@ -325,7 +331,38 @@ export async function localCve(endpoint, timeoutMs) {
 	}
 	return Buffer.concat(chunks).toString("utf8");
 }
-export async function executeAnalysis(q, runner = runTool, pinnedAddress) {
+export async function localCve(endpoint, timeoutMs) {
+	return cveResponse(`http://127.0.0.1:5000/api/${endpoint}`, timeoutMs);
+}
+export async function executeAnalysis(
+	q,
+	runner = runTool,
+	pinnedAddress,
+	fetcher = fetch,
+) {
+	if (q.tool === "nvd") {
+		if (
+			!Number.isInteger(q.timeoutSeconds) ||
+			q.timeoutSeconds < 5 ||
+			q.timeoutSeconds > 180
+		)
+			throw new Error("Timeout inválido.");
+		const raw = await cveResponse(nvdUrl(q), q.timeoutSeconds * 1000, fetcher);
+		const data = JSON.parse(raw);
+		if (
+			!Array.isArray(data.vulnerabilities) ||
+			!Number.isSafeInteger(data.totalResults)
+		)
+			throw new Error("Formato NVD no reconocido.");
+		return {
+			raw,
+			stdout: "",
+			stderr: "",
+			code: 0,
+			error: "",
+			database: `Fuente pública NVD API 2.0, consultada ${new Date().toISOString()}. ${data.vulnerabilities.length} de ${data.totalResults} registros. ${data.totalResults > data.vulnerabilities.length ? "Resultado limitado a 100 registros: reduce la consulta usando CPE o CVE; no es una lista completa." : ""} ${q.cve ? "Consulta por identificador CVE." : q.cpe ? "Coincidencia de CPE con versión; revisar condiciones y parches." : "Coincidencia textual por producto; la versión observada NO se filtra. Usa un CPE con versión para precisar."}`,
+		};
+	}
 	if (q.tool === "cve") {
 		if (
 			!Number.isInteger(q.timeoutSeconds) ||
@@ -482,7 +519,12 @@ export async function inspectAnalysisTools() {
 			}
 		result.push({
 			tool,
-			available: r.code === 0 && !r.error,
+			available:
+				(r.code === 0 ||
+					(tool === "searchsploit" &&
+						r.code === 2 &&
+						/Usage:\s+searchsploit\b/i.test(r.stdout))) &&
+				!r.error,
 			detail: (r.error || r.stdout || r.stderr).slice(0, 1500),
 			database,
 		});

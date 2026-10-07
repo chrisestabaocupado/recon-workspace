@@ -6,8 +6,8 @@ Primera versión implementada el 2 de octubre de 2026. Ruta: `/analisis`.
 
 1. Seleccionar un proyecto. El resumen toma las observaciones Nmap guardadas en Enumeración, usando la última observación de cada IP, puerto y protocolo. Cada servicio muestra fecha y ejecución de origen. Los servicios cerrados se excluyen; no se reutiliza su versión antigua. El historial conserva diez ejecuciones, por lo que el resumen puede ser incompleto.
 2. Revisar productos y versiones pendientes. Según el servicio, la interfaz propone consultas de SearchSploit/cve-search y verificaciones HTTP o TLS. Una biblioteca interna no se deduce de un banner: requiere archivos o inventario de paquetes.
-3. Configurar y verificar Kali en el navbar. **Comprobar herramientas** consulta los binarios disponibles y la API local de cve-search. Es una instantánea, no instala herramientas.
-4. Elegir la recomendación de un servicio o completar una consulta en Herramientas. Revisar el comando y ejecutar explícitamente. Las consultas bibliográficas no contactan al objetivo; Nikto y testssl.sh sí lo hacen.
+3. Configurar y verificar Kali en el navbar. **Comprobar SSH y herramientas** comprueba Kali, Node, Nmap, los ejecutables SearchSploit/Nikto/testssl/Trivy y la API local de cve-search. El diálogo muestra las herramientas ausentes o con errores y los comandos de instalación; el navbar avisa si hay herramientas pendientes. NVD no necesita instalación; su conectividad HTTPS se comprueba al consultar. El estado es una instantánea, no instala herramientas ni garantiza la actualidad de las bases. **Comprobar herramientas** en Análisis abre y repite esta misma verificación global.
+4. Elegir **CVE · NVD en línea** en la recomendación de un servicio o en Herramientas. El selector **Usar un servicio recolectado** completa IP, puerto, producto, versión y CPE cuando el XML Nmap lo contiene. Revisar la consulta y pulsar **Buscar CVE en NVD**. NVD se consulta por HTTPS desde Kali, sin instalar cve-search. Las consultas bibliográficas no contactan al objetivo; Nikto y testssl.sh sí lo hacen.
 5. Revisar candidatas, ajustar severidad y recomendación, y documentar la validación. Confirmar requiere una nota de evidencia. Una coincidencia por versión no acredita aplicabilidad: revisar rangos, condiciones, configuración y parches del proveedor, incluidos backports.
 6. Descargar el reporte completo y exportar JSON/Markdown para conservar evidencia. También se pueden importar reportes o registrar observaciones manuales sin Kali.
 
@@ -20,6 +20,7 @@ Al cambiar manualmente al puerto 80 se selecciona HTTP; al cambiar a 443, HTTPS.
 | Adaptador | Entrada | Resultado y límites |
 | --- | --- | --- |
 | SearchSploit | Producto/versión o CVE | Archivo local de Exploit-DB, salida JSON `RESULTS_EXPLOIT`. Busca referencias, no ejecuta exploits. No es un catálogo completo de CVE; la búsqueda textual puede tener falsos positivos. |
+| NVD | CVE, CPE con versión o nombre del producto | API pública NVD 2.0 desde Kali. Prioridad: CVE concreto, CPE, producto. Un CPE con versión utiliza `cpeName` e `isVulnerable`; el texto usa `keywordSearch` y no filtra por versión. Conserva JSON, CVSS, fechas, estado y rangos afectados. Los CVE enlazan a su ficha NVD. Hasta 100 registros; se informa el total y se pide reducir la consulta cuando es incompleta. Errores HTTP, límites de solicitudes y respuestas inválidas se registran como incidencias. |
 | cve-search | CVE o proveedor/producto CPE | API de Kali en `http://127.0.0.1:5000/api`. Admite entradas `id`, `summary`, `cvss`. La búsqueda del producto devuelve candidatas sin filtrar automáticamente por versión. Usar identificadores de la base, por ejemplo proveedor `apache` y producto `http_server`. |
 | Nikto | IP, dominio exacto o URL HTTP/HTTPS, con ruta opcional | JSON `vulnerabilities`. Perfil `-Tuning 123b`: archivos interesantes, configuración, información e identificación de software. Sin seguimiento de redirecciones, sin actualizaciones/submisiones automáticas y con pausa de un segundo entre pruebas. Para dominios se conservan Host/SNI y se fija la conexión a una IP validada en Kali. |
 | testssl.sh | Una IP TCP y puerto con TLS directo | JSON plano `--jsonfile`; conserva observaciones distintas de OK/INFO/DEBUG como candidatas. STARTTLS y SNI personalizado no están implementados. |
@@ -27,9 +28,29 @@ Al cambiar manualmente al puerto 80 se selecciona HTTP; al cambiar a 443, HTTPS.
 
 Los reportes incompatibles o JSON incompletos producen una incidencia y conservan la salida del runner para revisión manual. Un fallo o cero coincidencias no significa ausencia de vulnerabilidades. Los hallazgos de verificaciones activas también empiezan como candidatas.
 
+La falta de una herramienta de análisis no invalida SSH ni impide usar Nmap o las herramientas disponibles. La UI bloquea su ejecución y explica cómo prepararla; el servidor valida ese mismo estado antes de abrir una sesión para ejecutar análisis. Un cambio de ejecutor o la caducidad invalida el diagnóstico anterior.
+
+SearchSploit devuelve código 2 al mostrar la ayuda. La comprobación acepta ese código únicamente para `-h`/`--help` cuando la salida contiene su pantalla de uso; no lo interpreta como fallo de instalación. Los otros códigos y los errores de consultas reales siguen siendo fallos. Referencia: [código oficial de SearchSploit](https://gitlab.com/exploit-database/exploitdb/-/blob/main/searchsploit). Para cve-search el estado se muestra como **API local no disponible**, que no implica por sí solo que el software esté ausente.
+
+## Instalación remota desde el diálogo de Kali
+
+Después de verificar SSH, el apartado **Instalar herramientas faltantes por SSH** permite seleccionar SearchSploit (`exploitdb`), Nikto (`nikto`), testssl.sh (`testssl.sh`) y Trivy (`trivy`) que el diagnóstico detectó como ausentes. La aplicación muestra los paquetes y los comandos antes del botón **Instalar herramientas seleccionadas**. Solo se permite ese catálogo; no existe una consola de comandos arbitrarios ni instalación automática al verificar.
+
+La instalación ejecuta `apt-get update --error-on=any` y después `apt-get install -y --no-remove --no-install-recommends`, con configuración no interactiva y conservación de los archivos de configuración existentes. Utiliza los repositorios APT configurados en Kali. Root no necesita sudo. Para otros usuarios, se puede dejar la contraseña vacía si sudo funciona sin contraseña; si se necesita, introducir la **contraseña sudo de Kali**, que es distinta de la frase de la clave SSH. Se envía por stdin, nunca como argumento o comando de shell, se borra del formulario y no se persiste. Se elimina de la salida incluso si llega partida en varios chunks.
+
+El diálogo muestra las etapas y el registro de APT, hasta sus últimos 100.000 caracteres. Impide modificar la conexión y cerrar el diálogo durante la instalación; las nuevas operaciones y la creación de proyectos esperan. El instalador no se ejecuta mientras hay una prueba en curso. Al terminar, se vuelve a verificar SSH y las herramientas automáticamente, también si APT informó un error. La instalación del paquete no prepara por sí sola todas las bases: Trivy y cve-search conservan sus requisitos específicos. cve-search necesita configuración de servicio y base por separado; NVD no requiere instalación.
+
+Hay una sola instalación activa por servidor. Su progreso se vincula al acceso que la inició y permanece en memoria; no sobrevive al reinicio de la aplicación. El seguimiento admite hasta quince minutos. Si se pierde SSH o no llega la confirmación de APT, el resultado queda **sin confirmar**; puede haber procesos de APT todavía activos en Kali. No se reintenta automáticamente ni se fuerza la eliminación de bloqueos de APT. Comprobar el estado en Kali antes de volver a instalar.
+
+Referencias: [APT de Debian](https://manpages.debian.org/unstable/apt/apt-get.8.en.html), [paquete testssl.sh de Kali](https://www.kali.org/tools/testssl.sh/).
+
 ## Preparación de Kali y bases
 
-La aplicación necesita el acceso SSH ya existente, Kali Linux, Node.js 22 o superior y Nmap para la verificación global. Además, los adaptadores necesitan sus propios binarios y datos. Internet en Kali puede usarse para prepararlos fuera del módulo; las consultas del módulo permanecen locales.
+La aplicación necesita el acceso SSH ya existente, Kali Linux, Node.js 22 o superior y Nmap para la verificación global. NVD necesita acceso HTTPS a `services.nvd.nist.gov` desde Kali. Solo se envía el producto, CPE o CVE elegido; la IP asociada no se envía. Las consultas usan el acceso público sin clave API, con separación mínima de seis segundos entre solicitudes en el servidor. Si NVD devuelve 403 o 429, esperar al menos 30 segundos antes de reintentar. Los demás adaptadores usan sus binarios y bases locales; no se actualizan automáticamente.
+
+El XML de Nmap conserva los CPE del servicio en las nuevas importaciones y ejecuciones. Los proyectos antiguos siguen funcionando, pero si su importación descartó el CPE será necesario volver a importar el XML o introducirlo manualmente. Se convierten CPE URI simples (`cpe:/a:apache:http_server:2.4.49`) a CPE 2.3; formatos con escapes o sin versión requieren revisión. El formulario muestra la versión como referencia; el filtro NVD usa la versión dentro del CPE. Cambiar solo el campo de versión no modifica el CPE.
+
+Documentación oficial de parámetros y respuesta: [API de vulnerabilidades NVD](https://nvd.nist.gov/developers/vulnerabilities). La ausencia de coincidencias no confirma que el activo esté libre de vulnerabilidades; revisar también condiciones, parches y avisos del proveedor.
 
 - SearchSploit pertenece al paquete `exploitdb`. Instalarlo/actualizarlo con el gestor de paquetes de Kali y revisar `searchsploit -h`. La comprobación informa la modificación del archivo `/usr/share/exploitdb/files_exploits.csv` cuando existe; esta fecha no garantiza la actualidad de todos los registros.
 - Nikto pertenece al paquete `nikto`; testssl.sh al paquete `testssl.sh`, cuyo ejecutable en Kali es `testssl`. Las versiones y opciones deben verificarse en la instalación real.
@@ -65,6 +86,8 @@ Solo puede existir una operación de análisis simultánea por servidor. Timeout
 - JSON global permite restaurar datos desde los controles existentes de importación del workspace. Markdown contiene inventario, hallazgos, evidencia e incidencias de análisis.
 
 ## Validación
+
+Ampliación del 7 de octubre de 2026: 112 pruebas automatizadas aprobadas, TypeScript y build correctos. `npm run test:nvd` realiza una prueba opcional con la API pública desde la máquina donde se ejecute: consulta `CVE-2021-41773` y el CPE de Apache HTTP Server 2.4.49. La validación real devolvió el CVE y 87 registros para el CPE. Esto verifica el adaptador y el esquema de NVD, pero no sustituye comprobar la conectividad y el transporte SSH de la Kali del usuario. La UI se revisó en un origen local separado con un proyecto ficticio y sin conexión SSH configurada.
 
 Pruebas automatizadas con datos ficticios y procesos simulados: permisos específicos y compatibilidad de planes, límites de alcance, inventario con observaciones recientes, cinco formatos de reporte, persistencia y referencias, confirmación con evidencia, argumentos sin shell, modo local Trivy, UTF-8, timeout y falta de herramientas. La suite existente comprueba el transporte SSH y la vinculación/caducidad de la verificación.
 

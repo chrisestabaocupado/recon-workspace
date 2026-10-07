@@ -145,6 +145,12 @@ function hosts(value: unknown): ObservedHost[] {
 						port.product === undefined
 							? undefined
 							: str(port.product, "Producto", 4096, true),
+					cpes:
+						port.cpes === undefined
+							? undefined
+							: array(port.cpes, "CPE", 50).map((v) =>
+									str(v, "CPE", 1000, true),
+								),
 					version:
 						port.version === undefined
 							? undefined

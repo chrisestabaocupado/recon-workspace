@@ -1,5 +1,6 @@
 import { type KaliExecutor, validateExecutor } from "./kali.ts";
 import { quoteArg } from "./nmap-command.ts";
+import { nvdCpe, nvdUrl } from "./nvd.mjs";
 import { redactText } from "./redaction.ts";
 import type { ObservedPort } from "./results.ts";
 import {
@@ -16,6 +17,7 @@ import { parseNiktoTarget } from "./web-target.mjs";
 export const analysisTools = {
 	searchsploit: "SearchSploit",
 	cve: "cve-search local",
+	nvd: "CVE · NVD en línea",
 	nikto: "Nikto",
 	testssl: "testssl.sh",
 	trivy: "Trivy",
@@ -74,6 +76,7 @@ export type AnalysisQuery = {
 	vendor: string;
 	version: string;
 	cve: string;
+	cpe?: string;
 	path: string;
 	timeoutSeconds: number;
 };
@@ -86,6 +89,7 @@ export const defaultAnalysisQuery = (): AnalysisQuery => ({
 	vendor: "",
 	version: "",
 	cve: "",
+	cpe: "",
 	path: "",
 	timeoutSeconds: 60,
 });
@@ -162,6 +166,7 @@ export function validateAnalysisQuery(value: unknown): AnalysisQuery {
 		vendor: txt(item.vendor, 200),
 		version: txt(item.version, 100),
 		cve: txt(item.cve, 30).toUpperCase(),
+		cpe: item.cpe === undefined ? "" : txt(item.cpe, 1000).trim(),
 		path: txt(item.path, 1000),
 		timeoutSeconds: Number(item.timeoutSeconds),
 	};
@@ -173,6 +178,10 @@ export function validateAnalysisQuery(value: unknown): AnalysisQuery {
 	}
 	if (q.cve && !/^CVE-\d{4}-\d{4,}$/.test(q.cve))
 		throw new Error("Identificador CVE inválido.");
+	if (q.tool === "nvd") {
+		if (!q.cve && q.cpe) q.cpe = nvdCpe(q.cpe);
+		nvdUrl(q);
+	}
 	if (["searchsploit", "cve"].includes(q.tool) && !q.cve && !q.product.trim())
 		throw new Error("Escribe un producto o CVE.");
 	if (q.tool === "cve" && !q.cve && !q.vendor.trim())
@@ -327,6 +336,11 @@ export function toolRecommendations(
 	if (port.product)
 		result.push(
 			{
+				tool: "nvd",
+				reason:
+					"Consultar CVE reales en NVD con el CPE observado o el nombre del producto.",
+			},
+			{
 				tool: "searchsploit",
 				reason: "Buscar referencias del producto y versión observados.",
 			},
@@ -353,7 +367,44 @@ export function toolRecommendations(
 		});
 	return result;
 }
+export function serviceAnalysisQuery(
+	row: ReturnType<typeof analysisInventory>[number],
+	tool: AnalysisTool,
+): AnalysisQuery {
+	let cpe = "";
+	for (const observed of [...(row.observed.cpes ?? [])].sort(
+		(a, b) =>
+			Number(/^cpe:(?:\/|2\.3:)a/.test(b)) -
+			Number(/^cpe:(?:\/|2\.3:)a/.test(a)),
+	)) {
+		try {
+			cpe = nvdCpe(observed);
+			break;
+		} catch {
+			/* Requires operator review. */
+		}
+	}
+	return {
+		...defaultAnalysisQuery(),
+		tool,
+		target: row.target,
+		port: row.observed.port,
+		product: row.observed.product ?? row.observed.service,
+		version: row.observed.version ?? "",
+		cpe,
+		tls:
+			/ssl|tls|https/i.test(row.observed.service) ||
+			[443, 8443, 636, 993, 995, 465].includes(row.observed.port),
+	};
+}
 export function analysisCommand(q: AnalysisQuery): string {
+	if (q.tool === "nvd") {
+		try {
+			return `GET ${nvdUrl(q)}`;
+		} catch (e) {
+			return e instanceof Error ? e.message : "Consulta NVD inválida.";
+		}
+	}
 	let web: ReturnType<typeof parseNiktoTarget> | undefined;
 	if (q.tool === "nikto") {
 		try {
@@ -587,6 +638,76 @@ export function parseAnalysisReport(
 				"Sin clasificar",
 				undefined,
 				String(e.Codes ?? ""),
+			);
+		}
+	} else if (tool === "nvd") {
+		const d = obj(data);
+		if (
+			!Array.isArray(d.vulnerabilities) ||
+			!Number.isSafeInteger(d.totalResults) ||
+			Number(d.totalResults) < d.vulnerabilities.length
+		)
+			throw new Error("Formato NVD no reconocido.");
+		for (const row of d.vulnerabilities) {
+			const e = obj(obj(row).cve);
+			if (
+				typeof e.id !== "string" ||
+				!/^CVE-\d{4}-\d{4,}$/.test(e.id) ||
+				!Array.isArray(e.descriptions)
+			)
+				throw new Error("Entrada NVD incompleta.");
+			if (e.vulnStatus === "Rejected") continue;
+			const descriptions = e.descriptions.map(obj);
+			const summary =
+				descriptions.find((v) => v.lang === "es") ??
+				descriptions.find((v) => v.lang === "en") ??
+				descriptions[0];
+			const metrics = e.metrics ? obj(e.metrics) : {};
+			const scores = (metrics.cvssMetricV40 ??
+				metrics.cvssMetricV31 ??
+				metrics.cvssMetricV30 ??
+				metrics.cvssMetricV2 ??
+				[]) as unknown[];
+			if (!Array.isArray(scores)) throw new Error("Métricas NVD inválidas.");
+			const scoreRows = scores.map(obj);
+			const metric =
+				scoreRows.find((m) => m.type === "Primary") ?? scoreRows[0];
+			const score = metric?.cvssData ? obj(metric.cvssData) : {};
+			const configs: string[] = [];
+			const walk = (nodes: unknown[], depth = 0) => {
+				if (depth > 10)
+					throw new Error("Configuración NVD demasiado profunda.");
+				for (const value of nodes) {
+					const node = obj(value);
+					if (Array.isArray(node.cpeMatch))
+						for (const match of node.cpeMatch) {
+							const m = obj(match);
+							if (m.vulnerable === true)
+								configs.push(
+									`${m.criteria} ${[
+										"versionStartIncluding",
+										"versionStartExcluding",
+										"versionEndIncluding",
+										"versionEndExcluding",
+									]
+										.filter((k) => m[k])
+										.map((k) => `${k}=${m[k]}`)
+										.join(" ")}`,
+								);
+						}
+					if (Array.isArray(node.nodes)) walk(node.nodes, depth + 1);
+				}
+			};
+			if (Array.isArray(e.configurations)) walk(e.configurations);
+			const detail = `NVD: https://nvd.nist.gov/vuln/detail/${e.id}\nPublicado: ${e.published ?? "—"} · Actualizado: ${e.lastModified ?? "—"} · Estado: ${e.vulnStatus ?? "—"}\n${summary?.value ?? "Sin descripción"}\nConfiguraciones afectadas (revisar operadores y condiciones en el JSON):\n${configs.join("\n") || "Sin rangos publicados"}`;
+			add(
+				e.id,
+				detail,
+				typeof score.baseScore === "number"
+					? `CVSS ${score.baseScore}`
+					: "Sin clasificar",
+				undefined,
+				e.id,
 			);
 		}
 	} else if (tool === "cve") {

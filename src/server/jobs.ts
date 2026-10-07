@@ -8,6 +8,7 @@ import {
 	type KaliAccess,
 	type SshSettings,
 	validateKaliDiagnostic,
+	validateKaliTools,
 	validateSsh,
 } from "../lib/kali.ts";
 import { validateNmapArgs } from "../lib/nmap-command.ts";
@@ -209,8 +210,16 @@ export const verifySsh = createServerFn({ method: "POST" })
 			connection = await connectSsh(data, signal);
 			const connected = connection;
 			signal.addEventListener("abort", () => connected.end(), { once: true });
-			const version = validateKaliDiagnostic(
-				await execJsonInput(connection, diagnosticSource, {}, signal, 20000),
+			const diagnostic = await execJsonInput(
+				connection,
+				diagnosticSource,
+				{},
+				signal,
+				30000,
+			);
+			const version = validateKaliDiagnostic(diagnostic);
+			const tools = validateKaliTools(
+				(diagnostic as { tools?: unknown }).tools,
 			);
 			await installRemoteRunner(connection, signal);
 			await execText(
@@ -221,7 +230,7 @@ export const verifySsh = createServerFn({ method: "POST" })
 			return {
 				connected: true as const,
 				version: `${version} · Runner preparado`,
-				...kaliVerifications.issue(data),
+				...kaliVerifications.issue(data, Date.now(), tools),
 				fingerprint: data.fingerprint,
 			};
 		} catch (error) {

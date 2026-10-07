@@ -20,21 +20,19 @@ import {
 	findingPriority,
 	parseAnalysisReport,
 	reviewStates,
+	serviceAnalysisQuery,
 	toolRecommendations,
 	validateAnalysisData,
 	validateAnalysisQuery,
 } from "#/lib/analysis";
+import { kaliToolIssue } from "#/lib/kali";
 import { failuresMarkdown } from "#/lib/operation-history";
 import {
 	exportWorkspace,
 	validateWorkspace,
 	type WorkspaceData,
 } from "#/lib/storage";
-import {
-	inspectVulnerabilityTools,
-	runVulnerabilityAnalysis,
-	type ToolAvailability,
-} from "#/server/analysis";
+import { runVulnerabilityAnalysis } from "#/server/analysis";
 import { OperationHistory } from "../OperationHistory";
 import { PlanField } from "../planning/PlanFields";
 import { Button } from "../ui/button";
@@ -51,6 +49,7 @@ import { useWorkspace } from "../WorkspaceProvider";
 
 const panel = "min-w-0 rounded-xl border bg-card p-6 space-y-4";
 const selectClass = "w-full rounded-md border bg-background p-2 text-sm";
+const newQuery = () => ({ ...defaultAnalysisQuery(), tool: "nvd" as const });
 function download(content: string, name: string) {
 	const url = URL.createObjectURL(
 		new Blob([content], { type: "text/plain;charset=utf-8" }),
@@ -87,9 +86,21 @@ function FindingReview({
 				<p className="whitespace-pre-wrap break-words text-sm">
 					{finding.description || "Revisar la evidencia original."}
 				</p>
-				<p className="text-sm">
-					CVE: {finding.cves.join(", ") || "Sin asociación CVE"}
-				</p>
+				<div className="flex flex-wrap gap-2 text-sm">
+					{finding.cves.length
+						? finding.cves.map((cve) => (
+								<a
+									key={cve}
+									href={`https://nvd.nist.gov/vuln/detail/${cve}`}
+									target="_blank"
+									rel="noreferrer"
+									className="underline"
+								>
+									{cve}
+								</a>
+							))
+						: "Sin asociación CVE"}
+				</div>
 				<label className="grid gap-2 text-xs">
 					Estado
 					<select
@@ -142,6 +153,11 @@ export function AnalysisWorkspace() {
 		storageError,
 		getKaliAccess,
 		kaliReady,
+		kaliVerification,
+		kaliChecking,
+		kaliInstalling,
+		verifyKali,
+		setKaliDialogOpen,
 		recordFailure,
 		beginOperation,
 		finishOperation,
@@ -153,9 +169,9 @@ export function AnalysisWorkspace() {
 	const [busy, setBusy] = useState(false),
 		[error, setError] = useState(""),
 		[message, setMessage] = useState("");
-	const [query, setQuery] = useState(defaultAnalysisQuery),
-		[tools, setTools] = useState<ToolAvailability[]>([]),
-		[toolSignature, setToolSignature] = useState("");
+	const [query, setQuery] =
+		useState<ReturnType<typeof defaultAnalysisQuery>>(newQuery);
+	const tools = kaliReady ? (kaliVerification?.tools ?? []) : [];
 	const [tab, setTab] = useState("summary"),
 		[filter, setFilter] = useState(""),
 		[statusFilter, setStatusFilter] = useState("all");
@@ -238,19 +254,10 @@ export function AnalysisWorkspace() {
 		});
 	}
 	function selectService(row: (typeof inventory)[number], tool: AnalysisTool) {
-		setQuery({
-			...defaultAnalysisQuery(),
-			tool,
-			target: row.target,
-			port: row.observed.port,
-			product: row.observed.product ?? row.observed.service,
-			version: row.observed.version ?? "",
-			tls:
-				/ssl|tls|https/i.test(row.observed.service) ||
-				[443, 8443, 636, 993, 995, 465].includes(row.observed.port),
-		});
+		setQuery(serviceAnalysisQuery(row, tool));
 		setTab("tools");
 		setError("");
+		setMessage("");
 	}
 	async function inspect() {
 		if (busyRef.current) return;
@@ -258,13 +265,8 @@ export function AnalysisWorkspace() {
 		setBusy(true);
 		setError("");
 		try {
-			const access = getKaliAccess();
-			const result = await inspectVulnerabilityTools({ data: access });
-			setTools(result);
-			setToolSignature(access.kaliToken);
-			setMessage(
-				"Disponibilidad comprobada en Kali. No se instalaron ni actualizaron herramientas.",
-			);
+			setKaliDialogOpen(true);
+			await verifyKali();
 		} catch (e) {
 			fail(e, "Comprobar herramientas");
 		} finally {
@@ -280,6 +282,8 @@ export function AnalysisWorkspace() {
 		setMessage("");
 		try {
 			const q = validateAnalysisQuery(query);
+			const unavailable = kaliToolIssue(tools, q.tool);
+			if (unavailable) throw new Error(unavailable);
 			const issues = analysisQueryIssues(q, project.plan);
 			if (issues.length) throw new Error(issues.join(" "));
 			const access = getKaliAccess();
@@ -317,7 +321,7 @@ export function AnalysisWorkspace() {
 			setMessage(
 				result.evidence.error && !result.findings.length
 					? "Se guardó la salida con incidencias. No se pudo obtener un resultado concluyente; revisa la evidencia y el diagnóstico."
-					: `${result.findings.length} candidatas registradas en el proyecto original. ${result.evidence.error ? "Resultado parcial o con incidencias; revisa la evidencia." : "Revisa aplicabilidad y condiciones antes de confirmar."}`,
+					: `${result.findings.length} candidatas registradas en el proyecto original. ${result.evidence.error ? "Resultado parcial o con incidencias; revisa la evidencia." : "Revisa aplicabilidad y condiciones antes de confirmar."} ${q.tool === "nvd" ? result.evidence.warnings[1] : ""}`,
 			);
 			setTab(result.evidence.error ? "evidence" : "findings");
 		} catch (e) {
@@ -394,6 +398,10 @@ export function AnalysisWorkspace() {
 		queryIssues = [e instanceof Error ? e.message : "Completa la consulta."];
 	}
 	const activeProbe = query.tool === "nikto" || query.tool === "testssl";
+	if (kaliReady) {
+		const unavailable = kaliToolIssue(tools, query.tool);
+		if (unavailable) queryIssues.push(unavailable);
+	}
 	if (!hydrated) return <p>Cargando proyectos…</p>;
 	return (
 		<div className="grid gap-5">
@@ -437,7 +445,7 @@ export function AnalysisWorkspace() {
 								...w,
 								selectedProjectId: e.target.value,
 							}));
-							setQuery(defaultAnalysisQuery());
+							setQuery(newQuery());
 							setFullReport(undefined);
 							setError("");
 							setMessage("");
@@ -678,52 +686,40 @@ export function AnalysisWorkspace() {
 					</TabsContent>
 					<TabsContent value="tools" className="mt-3 grid gap-5">
 						<div className={panel}>
-							<div className="flex flex-wrap justify-between gap-3">
-								<h2 className="font-semibold">Disponibilidad en Kali</h2>
-								<Button
-									variant="outline"
-									disabled={busy || !kaliReady}
-									onClick={() => void inspect()}
-								>
-									Comprobar herramientas
-								</Button>
-							</div>
-							<p className="text-sm text-muted-foreground">
-								Las consultas usan datos locales. Tener Internet en Kali permite
-								preparar bases por separado; este módulo no hace actualizaciones
-								automáticas ni envía el inventario a servicios públicos.
-								cve-search debe escuchar en 127.0.0.1:5000 de Kali.
-							</p>
-							{!kaliReady && (
-								<p className="text-sm">
-									Configura y verifica Kali en el navbar para consultar o
-									ejecutar herramientas. Puedes revisar e importar datos sin
-									conexión.
-								</p>
-							)}
-							{tools.map((t) => (
-								<details key={t.tool} className="rounded border p-3 text-xs">
-									<summary>
-										{analysisTools[t.tool as AnalysisTool] ?? t.tool} ·{" "}
-										{t.available
-											? "Disponible en la última comprobación"
-											: "No disponible"}
-									</summary>
-									<pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap break-all">
-										{t.detail}\n{t.database}
-									</pre>
-								</details>
-							))}
-							{toolSignature && (
-								<p className="text-xs text-muted-foreground">
-									La disponibilidad es una instantánea; vuelve a comprobarla
-									después de cambiar de Kali o instalar herramientas.
-								</p>
-							)}
-						</div>
-						<div className={panel}>
 							<h2 className="font-semibold">Consulta o verificación</h2>
-							<fieldset disabled={busy} className="grid gap-4">
+							<fieldset
+								disabled={busy || kaliInstalling}
+								className="grid gap-4"
+							>
+								<label className="grid gap-2 text-xs">
+									Usar un servicio recolectado
+									<select
+										className={selectClass}
+										value=""
+										onChange={(e) => {
+											const row = inventory.find(
+												(r) =>
+													`${r.target}|${r.observed.protocol}|${r.observed.port}` ===
+													e.target.value,
+											);
+											if (row) selectService(row, query.tool);
+										}}
+									>
+										<option value="">
+											Selecciona un servicio para completar la consulta
+										</option>
+										{inventory.map((r) => (
+											<option
+												key={`${r.target}|${r.observed.protocol}|${r.observed.port}`}
+												value={`${r.target}|${r.observed.protocol}|${r.observed.port}`}
+											>
+												{r.target}:{r.observed.port}/{r.observed.protocol} ·{" "}
+												{r.observed.product || r.observed.service}{" "}
+												{r.observed.version}
+											</option>
+										))}
+									</select>
+								</label>
 								<label className="grid gap-2 text-xs">
 									Herramienta
 									<select
@@ -743,6 +739,14 @@ export function AnalysisWorkspace() {
 										))}
 									</select>
 								</label>
+								{query.tool === "nvd" && (
+									<p className="rounded-lg border p-3 text-sm">
+										Fuente: NVD (NIST). Al ejecutar se envía únicamente el
+										producto, CPE o CVE a services.nvd.nist.gov desde Kali. La
+										IP asociada y el inventario permanecen en el proyecto.
+										Prioridad de búsqueda: CVE → CPE → producto.
+									</p>
+								)}
 								<div className="grid gap-4 sm:grid-cols-2">
 									<PlanField
 										label={
@@ -806,11 +810,19 @@ export function AnalysisWorkspace() {
 													setQuery((q) => ({ ...q, version }))
 												}
 												hint={
-													query.tool === "cve"
-														? "Referencia para revisión; la API devuelve CVE del producto, no filtra automáticamente por versión."
+													query.tool === "cve" || query.tool === "nvd"
+														? "Referencia para revisión. NVD filtra por versión únicamente cuando se proporciona un CPE concreto."
 														: "Buscar coincidencias; revisar rangos y parches."
 												}
 											/>
+											{query.tool === "nvd" && (
+												<PlanField
+													label="CPE con versión (opcional)"
+													value={query.cpe ?? ""}
+													onChange={(cpe) => setQuery((q) => ({ ...q, cpe }))}
+													hint="Se completa con el CPE del XML Nmap si tiene versión. Ejemplo: cpe:2.3:a:apache:http_server:2.4.49:*:*:*:*:*:*:*"
+												/>
+											)}
 											<PlanField
 												label="CVE concreto (opcional)"
 												value={query.cve}
@@ -886,6 +898,7 @@ export function AnalysisWorkspace() {
 								)}
 								<Button
 									disabled={
+										busy ||
 										!kaliReady ||
 										queryIssues.length > 0 ||
 										Boolean(storageError)
@@ -894,9 +907,58 @@ export function AnalysisWorkspace() {
 								>
 									{activeProbe
 										? "Ejecutar verificación en Kali"
-										: "Consultar datos locales en Kali"}
+										: query.tool === "nvd"
+											? "Buscar CVE en NVD"
+											: "Consultar datos locales en Kali"}
 								</Button>
 							</fieldset>
+						</div>
+						<div className={panel}>
+							<div className="flex flex-wrap justify-between gap-3">
+								<h2 className="font-semibold">Disponibilidad en Kali</h2>
+								<Button
+									variant="outline"
+									disabled={
+										busy || kaliChecking || kaliInstalling || !kaliReady
+									}
+									onClick={() => void inspect()}
+								>
+									Comprobar herramientas
+								</Button>
+							</div>
+							<p className="text-sm text-muted-foreground">
+								NVD consulta CVE por HTTPS desde Kali sin instalar cve-search.
+								SearchSploit, cve-search y Trivy usan bases locales preparadas
+								en Kali. La API de cve-search debe escuchar en 127.0.0.1:5000.
+							</p>
+							{!kaliReady && (
+								<p className="text-sm">
+									Configura y verifica Kali en el navbar para consultar o
+									ejecutar herramientas. Puedes revisar e importar datos sin
+									conexión.
+								</p>
+							)}
+							{tools.map((t) => (
+								<details key={t.tool} className="rounded border p-3 text-xs">
+									<summary>
+										{analysisTools[t.tool as AnalysisTool] ?? t.tool} ·{" "}
+										{t.tool === "nvd"
+											? "Sin instalación · requiere HTTPS"
+											: t.available
+												? "Disponible en la última comprobación"
+												: "No disponible"}
+									</summary>
+									<pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap break-all">
+										{t.detail}\n{t.database}
+									</pre>
+								</details>
+							))}
+							{tools.length > 0 && (
+								<p className="text-xs text-muted-foreground">
+									La disponibilidad es una instantánea; vuelve a comprobarla
+									después de cambiar de Kali o instalar herramientas.
+								</p>
+							)}
 						</div>
 					</TabsContent>
 					<TabsContent value="findings" className="mt-3 grid gap-4">

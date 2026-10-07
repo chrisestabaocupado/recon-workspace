@@ -7,6 +7,7 @@ export type ObservedPort = {
 	service: string;
 	product?: string;
 	version?: string;
+	cpes?: string[];
 };
 export type ObservedHost = {
 	address: string;
@@ -40,6 +41,7 @@ export function mergeObservedHosts(hosts: ObservedHost[]): ObservedHost[] {
 				version:
 					port.version ??
 					(prior?.state === port.state ? prior.version : undefined),
+				cpes: port.cpes,
 			});
 		}
 		merged.set(key, {
@@ -101,6 +103,9 @@ function fromXml(report: string): ObservedHost[] {
 					state: attr(node(port.state), "state") ?? "unknown",
 					service: attr(service, "name") ?? "unknown",
 					product: attr(service, "product"),
+					cpes: list(service.cpe).filter(
+						(v): v is string => typeof v === "string",
+					),
 					version:
 						[attr(service, "version"), attr(service, "extrainfo")]
 							.filter(Boolean)

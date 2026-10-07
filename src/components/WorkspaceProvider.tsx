@@ -77,6 +77,8 @@ type WorkspaceContextValue = {
 	kaliVerification: KaliVerification | null;
 	kaliReady: boolean;
 	kaliChecking: boolean;
+	kaliInstalling: boolean;
+	setKaliInstalling: (value: boolean) => void;
 	kaliError: string;
 	observedKaliFingerprint: string;
 	kaliDialogOpen: boolean;
@@ -130,6 +132,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 	const [kaliVerification, setKaliVerification] =
 		useState<KaliVerification | null>(null);
 	const [kaliChecking, setKaliChecking] = useState(false);
+	const [kaliInstalling, updateKaliInstalling] = useState(false);
+	const installingKali = useRef(false);
+	const setKaliInstalling = useCallback((value: boolean) => {
+		installingKali.current = value;
+		updateKaliInstalling(value);
+	}, []);
 	const checkingKali = useRef(false);
 	const autoKaliVerification = useRef(new KaliAutoVerification());
 	const [kaliError, setKaliError] = useState("");
@@ -174,7 +182,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 		setKaliError("");
 	};
 	const verifyKali = useCallback(async () => {
-		if (checkingKali.current) return;
+		if (checkingKali.current || installingKali.current) return;
 		checkingKali.current = true;
 		setKaliChecking(true);
 		setKaliVerification(null);
@@ -202,6 +210,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 					version: result.version,
 					executor: result.executor,
 					settingsSignature: signature,
+					tools: result.tools,
 				});
 				setKaliClock(Date.now());
 			} else {
@@ -229,6 +238,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 		}
 	}, [recordFailure, workspace.selectedProjectId]);
 	const getKaliAccess = (): KaliAccess => {
+		if (installingKali.current)
+			throw new Error(
+				"Espera a que termine la instalación de herramientas en Kali.",
+			);
 		if (
 			!kaliVerification ||
 			!isKaliReady(kaliVerification, settingsRef.current)
@@ -274,7 +287,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 		setHydrated(true);
 	}, []);
 	useEffect(() => {
-		if (!hydrated || kaliChecking || checkingKali.current) return;
+		if (!hydrated || kaliChecking || checkingKali.current || kaliInstalling)
+			return;
 		if (
 			autoKaliVerification.current.claim(
 				settings,
@@ -289,6 +303,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 		settings,
 		kaliVerification,
 		kaliChecking,
+		kaliInstalling,
 		kaliClock,
 		verifyKali,
 	]);
@@ -563,7 +578,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 				hydrated,
 				projectDialogOpen,
 				setProjectDialogOpen,
-				projectCreationBlocked,
+				projectCreationBlocked: projectCreationBlocked || kaliInstalling,
 				setProjectCreationBlocked,
 				storageError,
 				setStorageError,
@@ -574,6 +589,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 				kaliVerification,
 				kaliReady,
 				kaliChecking,
+				kaliInstalling,
+				setKaliInstalling,
 				kaliError,
 				observedKaliFingerprint,
 				kaliDialogOpen,

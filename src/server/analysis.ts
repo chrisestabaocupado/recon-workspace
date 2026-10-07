@@ -9,6 +9,7 @@ import {
 	validateAnalysisQuery,
 } from "../lib/analysis.ts";
 import { executorIdentity, type KaliAccess } from "../lib/kali.ts";
+import nvdSource from "../lib/nvd.mjs?raw";
 import { redactText } from "../lib/redaction.ts";
 import {
 	addressRange,
@@ -22,13 +23,19 @@ import remoteSource from "./remote-analysis.mjs?raw";
 import { connectSsh, execJsonInput } from "./ssh.ts";
 
 let active = false;
-const remoteProgram = remoteSource.replace(
-	'import { parseNiktoTarget } from "../lib/web-target.mjs";',
-	webTargetSource.replace(
-		"export function parseNiktoTarget",
-		"function parseNiktoTarget",
-	),
-);
+let lastNvdRequest = 0;
+const remoteProgram = remoteSource
+	.replace(
+		'import { parseNiktoTarget } from "../lib/web-target.mjs";',
+		webTargetSource.replace(
+			"export function parseNiktoTarget",
+			"function parseNiktoTarget",
+		),
+	)
+	.replace(
+		'import { nvdUrl } from "../lib/nvd.mjs";',
+		nvdSource.replaceAll("export function", "function"),
+	);
 async function remote(
 	access: KaliAccess,
 	payload: object,
@@ -39,6 +46,14 @@ async function remote(
 		throw new Error(
 			"Ya hay una operación de análisis en Kali. Espera su finalización.",
 		);
+	if (
+		record(payload).operation === "run" &&
+		record(record(payload).query).tool === "nvd"
+	) {
+		if (Date.now() - lastNvdRequest < 6000)
+			throw new Error("Espera 6 segundos entre consultas a NVD.");
+		lastNvdRequest = Date.now();
+	}
 	active = true;
 	let connection: Client | undefined;
 	const deadline = Date.now() + seconds * 1000;
@@ -139,8 +154,8 @@ export const inspectVulnerabilityTools = createServerFn({ method: "POST" })
 export const runVulnerabilityAnalysis = createServerFn({ method: "POST" })
 	.validator((value: unknown) => {
 		const item = record(value);
-		const access = kaliVerifications.require(item);
 		const query = validateAnalysisQuery(item.query);
+		const access = kaliVerifications.requireTool(item, query.tool);
 		const plan =
 			item.plan === undefined ? undefined : validateScopePlan(item.plan);
 		const issues = analysisQueryIssues(query, plan);
@@ -209,10 +224,13 @@ export const runVulnerabilityAnalysis = createServerFn({ method: "POST" })
 				(data.query.tool === "trivy"
 					? data.query.path
 					: `${data.query.product} ${data.query.version}`.trim() ||
-						data.query.cve),
-			port: ["nikto", "testssl"].includes(data.query.tool)
-				? data.query.port
-				: undefined,
+						data.query.cve ||
+						data.query.cpe ||
+						"Consulta CVE"),
+			port:
+				["nikto", "testssl"].includes(data.query.tool) || data.query.target
+					? data.query.port
+					: undefined,
 			query: analysisCommand(data.query),
 			date: new Date().toISOString(),
 			raw: raw.slice(0, 50000),

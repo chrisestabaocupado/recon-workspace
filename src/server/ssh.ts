@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { StringDecoder } from "node:string_decoder";
 import type { Client } from "ssh2";
 import type { SshSettings } from "../lib/kali.ts";
 import { quoteArg } from "../lib/nmap-command.ts";
@@ -136,6 +137,84 @@ export async function connectSsh(
 				return observedFingerprint === settings.fingerprint;
 			},
 		});
+	});
+}
+export function execJsonEvents(
+	connection: Client,
+	source: string,
+	payload: object,
+	signal: AbortSignal,
+	emit: (event: unknown) => void,
+) {
+	signal.throwIfAborted();
+	return new Promise<void>((resolve, reject) => {
+		let settled = false,
+			pending = "",
+			bytes = 0;
+		let channel: import("ssh2").ClientChannel | undefined;
+		const decoder = new StringDecoder("utf8");
+		const failed = () =>
+			done(new Error("No se pudo confirmar la instalación remota."));
+		const done = (error?: Error) => {
+			if (settled) return;
+			settled = true;
+			signal.removeEventListener("abort", failed);
+			connection.removeListener("close", failed);
+			connection.removeListener("error", failed);
+			if (error) {
+				channel?.close();
+				reject(error);
+			} else resolve();
+		};
+		signal.addEventListener("abort", failed, { once: true });
+		connection.once("close", failed);
+		connection.once("error", failed);
+		connection.exec(
+			`exec node --input-type=module -e ${quoteArg(source)}`,
+			(error, stream) => {
+				if (error) {
+					failed();
+					return;
+				}
+				channel = stream;
+				if (settled || signal.aborted) {
+					stream.close();
+					return;
+				}
+				stream.on("data", (chunk: Buffer) => {
+					if (settled) return;
+					bytes += chunk.length;
+					pending += decoder.write(chunk);
+					if (bytes > 8 * 1024 * 1024) {
+						failed();
+						return;
+					}
+					for (;;) {
+						const end = pending.indexOf("\n");
+						if (end < 0) break;
+						const line = pending.slice(0, end);
+						if (line.length > 65536) {
+							failed();
+							return;
+						}
+						pending = pending.slice(end + 1);
+						try {
+							emit(JSON.parse(line));
+						} catch {
+							failed();
+							return;
+						}
+					}
+					if (pending.length > 65536) failed();
+				});
+				stream.stderr.resume();
+				stream.once("error", failed);
+				stream.once("close", (code: number | null) =>
+					code === 0 && !pending.trim() ? done() : failed(),
+				);
+				stream.end(JSON.stringify(payload));
+			},
+		);
 	});
 }
 export function execText(

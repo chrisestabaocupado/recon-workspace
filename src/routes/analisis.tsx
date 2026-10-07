@@ -6,7 +6,7 @@ export const Route = createFileRoute("/analisis")({
 	component: () => (
 		<PhasePage
 			title="Análisis de vulnerabilidades"
-			description="Resume lo observado, consulta referencias locales y documenta verificaciones desde Kali."
+			description="Usa los servicios recolectados para buscar CVE en NVD, consultar bases locales y verificar vulnerabilidades desde Kali."
 		>
 			<AnalysisWorkspace />
 		</PhasePage>

@@ -51,7 +51,8 @@ test('Dominio sin IP autorizada no inicia Nikto', async () => {
 test('El programa enviado por SSH incluye el parser de URL y bloquea dominios sin IP fijada', async () => {
   const source=await readFile(new URL('../src/server/remote-analysis.mjs',import.meta.url),'utf8');
   const parser=await readFile(new URL('../src/lib/web-target.mjs',import.meta.url),'utf8');
-  const program=source.replace('import { parseNiktoTarget } from "../lib/web-target.mjs";',parser.replace('export function parseNiktoTarget','function parseNiktoTarget'));
+  const nvd=await readFile(new URL('../src/lib/nvd.mjs',import.meta.url),'utf8');
+  const program=source.replace('import { parseNiktoTarget } from "../lib/web-target.mjs";',parser.replace('export function parseNiktoTarget','function parseNiktoTarget')).replace('import { nvdUrl } from "../lib/nvd.mjs";',nvd.replaceAll('export function','function'));
   assert.ok(!program.includes('../lib/web-target.mjs'));
   const result=spawnSync(process.execPath,['--input-type=module','-e',program],{input:JSON.stringify({operation:'run',query:{...defaultAnalysisQuery(),tool:'nikto',target:'https://webmail.lab.invalid/'}}),encoding:'utf8',timeout:5000});
   assert.equal(result.status,1);assert.match(result.stderr,/resolverse y autorizarse/);
@@ -204,7 +205,7 @@ test('Resumen conserva procedencia y última observación sin reutilizar version
   assert.equal(analysisInventory(p).length,0);
   p.lastRuns[0].hosts[0].ports[0].state = 'open';
   const r=analysisInventory(p)[0]; assert.equal(r.observed.version,'2.4.60'); assert.equal(r.runId,'new');
-  assert.deepEqual(toolRecommendations(r.observed).map(r=>r.tool),['searchsploit','cve','nikto','testssl']);
+  assert.deepEqual(toolRecommendations(r.observed).map(r=>r.tool),['nvd','searchsploit','cve','nikto','testssl']);
   assert.ok(!toolRecommendations({...r.observed,protocol:'udp'}).some(r=>r.tool==='nikto'));
 });
 test('Los cinco adaptadores interpretan reportes conservando CVE, severidad y condiciones como candidatas',()=> {

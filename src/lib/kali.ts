@@ -11,12 +11,95 @@ export type KaliExecutor = Pick<
 	"host" | "port" | "username" | "fingerprint"
 >;
 export type KaliAccess = { mode: "ssh"; ssh: SshSettings; kaliToken: string };
+export const kaliToolHelp = {
+	searchsploit: {
+		label: "SearchSploit",
+		command: "sudo apt install exploitdb",
+		url: "https://www.kali.org/tools/exploitdb/",
+	},
+	nikto: {
+		label: "Nikto",
+		command: "sudo apt install nikto",
+		url: "https://www.kali.org/tools/nikto/",
+	},
+	testssl: {
+		label: "testssl.sh",
+		command: "sudo apt install testssl.sh",
+		url: "https://www.kali.org/tools/testssl.sh/",
+	},
+	trivy: {
+		label: "Trivy",
+		command: "sudo apt install trivy",
+		url: "https://www.kali.org/tools/trivy/",
+	},
+	cve: {
+		label: "cve-search local",
+		command: "",
+		url: "https://github.com/cve-search/cve-search",
+	},
+	nvd: {
+		label: "NVD en línea",
+		command: "",
+		url: "https://nvd.nist.gov/developers/vulnerabilities",
+	},
+} as const;
+export type KaliToolCheck = {
+	tool: keyof typeof kaliToolHelp;
+	available: boolean;
+	status: "available" | "missing" | "error";
+	detail: string;
+	database: string;
+};
+export function validateKaliTools(value: unknown): KaliToolCheck[] {
+	if (
+		!Array.isArray(value) ||
+		value.length !== Object.keys(kaliToolHelp).length
+	)
+		throw new Error(
+			"El diagnóstico de herramientas está incompleto. Vuelve a verificar Kali.",
+		);
+	const seen = new Set<string>();
+	return value.map((row) => {
+		if (
+			!row ||
+			!Object.hasOwn(kaliToolHelp, row.tool) ||
+			seen.has(row.tool) ||
+			!["available", "missing", "error"].includes(row.status) ||
+			row.available !== (row.status === "available") ||
+			typeof row.detail !== "string" ||
+			row.detail.length > 1500 ||
+			typeof row.database !== "string" ||
+			row.database.length > 1500
+		)
+			throw new Error("Diagnóstico de herramientas inválido.");
+		seen.add(row.tool);
+		return {
+			tool: row.tool,
+			available: row.available,
+			status: row.status,
+			detail: row.detail,
+			database: row.database,
+		};
+	});
+}
+export function kaliToolIssue(
+	tools: KaliToolCheck[] | undefined,
+	tool: string,
+): string {
+	const check = tools?.find((t) => t.tool === tool);
+	if (!check)
+		return "Vuelve a comprobar SSH y herramientas para conocer la disponibilidad de esta herramienta.";
+	if (check.available) return "";
+	const help = kaliToolHelp[check.tool];
+	return `${help.label}: ${check.status === "missing" ? "no está instalado o no está en PATH" : "no está disponible"}. ${help.command ? `En Kali: ${help.command}.` : check.detail} Después vuelve a comprobar SSH y herramientas.`;
+}
 export type KaliVerification = {
 	token: string;
 	expiresAt: string;
 	version: string;
 	executor: KaliExecutor;
 	settingsSignature: string;
+	tools?: KaliToolCheck[];
 };
 
 export function validateSsh(value: unknown): asserts value is SshSettings {

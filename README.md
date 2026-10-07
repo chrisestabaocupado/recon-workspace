@@ -14,7 +14,7 @@ Consulta [Alcance y planificación](docs/ALCANCE-PLANIFICACION.md) para el flujo
 
 Consulta [Reconocimiento](docs/RECONOCIMIENTO.md) para fuentes, filtros, sincronización curl, trazabilidad y límites. Las consultas públicas necesitan permiso pasivo explícito en el plan; la carga manual no hace solicitudes de red. Las consultas HTTPS de crt.sh y RDAP salen de Kali mediante SSH. Los futuros adaptadores activos siguen pendientes.
 
-Consulta [Análisis de vulnerabilidades](docs/ANALISIS-VULNERABILIDADES.md) para el resumen del inventario, recomendaciones por servicio, consultas locales SearchSploit/cve-search, verificaciones Nikto/testssl.sh, análisis de archivos con Trivy, revisión de hallazgos y evidencias. Las bases y herramientas se preparan en Kali; las coincidencias se registran como candidatas. Nikto y testssl.sh requieren permisos específicos en el plan. Falta validar estos adaptadores contra una instalación Kali real.
+Consulta [Análisis de vulnerabilidades](docs/ANALISIS-VULNERABILIDADES.md) para buscar CVE en NVD por HTTPS desde Kali usando producto, CVE o CPE con versión del inventario Nmap, consultar bases locales SearchSploit/cve-search, verificar HTTP/TLS con Nikto/testssl.sh y analizar archivos con Trivy. El selector de servicios completa la consulta con los datos recolectados. Las coincidencias conservan evidencia y se registran como candidatas. Nikto y testssl.sh requieren permisos específicos en el plan. La aceptación del flujo SSH contra la instalación Kali del usuario sigue pendiente.
 
 BloodHound y los adaptadores de enumeración DNS/SMB/LDAP todavía no están implementados. La conexión SSH está preparada, pero requiere validar el flujo con una instancia Kali y una clave configuradas por el usuario.
 
