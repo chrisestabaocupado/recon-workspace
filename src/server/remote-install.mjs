@@ -3,16 +3,14 @@ import { readFileSync } from "node:fs";
 import { StringDecoder } from "node:string_decoder";
 
 const packages = {
-	searchsploit: "exploitdb",
-	nikto: "nikto",
-	testssl: "testssl.sh",
-	trivy: "trivy",
+	dig: "bind9-dnsutils",
+	openssl: "openssl",
 };
 export function installCommands(tools, password = "", root = false) {
 	if (
 		!Array.isArray(tools) ||
 		!tools.length ||
-		tools.length > 4 ||
+		tools.length > Object.keys(packages).length ||
 		new Set(tools).size !== tools.length ||
 		tools.some((tool) => !Object.hasOwn(packages, tool))
 	)

@@ -40,13 +40,15 @@ function KaliToolsStatus({ tools }: { tools: KaliToolCheck[] }) {
 			className="space-y-3 rounded-lg border p-3"
 			aria-label="Herramientas comprobadas en Kali"
 		>
-			<h3 className="text-sm font-medium">Herramientas de análisis</h3>
+			<h3 className="text-sm font-medium">
+				Herramientas auxiliares de reconocimiento
+			</h3>
 			<p
 				className={`text-xs ${unavailable.length ? "text-warning" : "text-success"}`}
 			>
 				{unavailable.length
-					? `${unavailable.length} herramientas no disponibles. SSH está verificado; las acciones que requieren esas herramientas están bloqueadas.`
-					: "Herramientas comprobadas. Revisa también sus bases y la conectividad de las fuentes."}
+					? `${unavailable.length} herramientas auxiliares no disponibles. DNS y TLS de la app usan Node.js; estas herramientas son opcionales para comprobaciones manuales.`
+					: "Herramientas comprobadas. La conectividad hacia fuentes y objetivos se comprueba al consultar."}
 			</p>
 			{tools.map((tool) => {
 				const help = kaliToolHelp[tool.tool];
@@ -61,15 +63,11 @@ function KaliToolsStatus({ tools }: { tools: KaliToolCheck[] }) {
 							<span
 								className={tool.available ? "text-success" : "text-warning"}
 							>
-								{tool.tool === "nvd"
-									? "Sin instalación"
-									: tool.tool === "cve" && !tool.available
-										? "API local no disponible"
-										: tool.status === "available"
-											? "Disponible"
-											: tool.status === "missing"
-												? "No instalado / fuera de PATH"
-												: "Comprobación fallida"}
+								{tool.status === "available"
+									? "Disponible"
+									: tool.status === "missing"
+										? "No instalado / fuera de PATH"
+										: "Comprobación fallida"}
 							</span>
 						</summary>
 						<p className="mt-2 whitespace-pre-wrap break-words">
@@ -140,7 +138,7 @@ export function KaliConnectionButton() {
 						? "Comprobando Kali…"
 						: kaliReady
 							? missingTools
-								? `Kali · ${missingTools} herramientas pendientes`
+								? `Kali · ${missingTools} auxiliares opcionales`
 								: "Kali verificado"
 							: kaliError
 								? "Revisar conexión Kali"
@@ -295,7 +293,7 @@ export function KaliConnectionDialog() {
 					error: message,
 				});
 			recordFailure(workspace.selectedProjectId || null, {
-				phase: "analysis",
+				phase: "recon",
 				stage: "Instalar herramientas en Kali",
 				source: "APT",
 				target: `${ssh.username}@${ssh.host}`,
@@ -503,10 +501,6 @@ export function KaliConnectionDialog() {
 									? "Instalando en Kali…"
 									: "Instalar herramientas seleccionadas"}
 							</Button>
-							<p className="text-xs text-muted-foreground">
-								cve-search requiere configurar su servicio y su base por
-								separado. NVD no requiere instalación.
-							</p>
 						</section>
 					)}
 					{installError && (

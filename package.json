@@ -14,9 +14,7 @@
     "format": "biome format",
     "lint": "biome lint",
     "check": "biome check",
-    "test": "node --experimental-strip-types --test tests/*.test.mjs",
-    "test:nvd": "node --experimental-strip-types --test tests/nvd-integration.mjs",
-    "test:nikto": "node --experimental-strip-types --test tests/nikto-integration.mjs"
+    "test": "node --experimental-strip-types --test tests/*.test.mjs"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",

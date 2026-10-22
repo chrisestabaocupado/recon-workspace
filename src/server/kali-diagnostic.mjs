@@ -33,27 +33,18 @@ export function probeTool(bin, args, spawnProcess = spawn) {
 			),
 		);
 		child.once("close", (code) => {
-			// SearchSploit documents exit 2 for its help screen, not an execution failure.
-			const help =
-				bin === "searchsploit" &&
-				args.length === 1 &&
-				["-h", "--help"].includes(args[0]) &&
-				code === 2 &&
-				/Usage:\s+searchsploit\b/i.test(output);
 			done(
-				code === 0 || help ? "available" : "error",
+				code === 0 ? "available" : "error",
 				output || `${bin} terminó con código ${code}.`,
 			);
 		});
 	});
 }
-export async function inspectKaliTools(probe = probeTool, request = fetch) {
-	const binaries = await Promise.all(
+export async function inspectKaliTools(probe = probeTool) {
+	return Promise.all(
 		[
-			["searchsploit", "searchsploit", ["-h"]],
-			["nikto", "nikto", ["-Version"]],
-			["testssl", "testssl", ["--version"]],
-			["trivy", "trivy", ["--version"]],
+			["dig", "dig", ["-v"]],
+			["openssl", "openssl", ["version"]],
 		].map(async ([tool, bin, args]) => {
 			const result = await probe(bin, args);
 			return {
@@ -61,72 +52,10 @@ export async function inspectKaliTools(probe = probeTool, request = fetch) {
 				...result,
 				available: result.status === "available",
 				database:
-					"Comprobación del ejecutable; la presencia y actualidad de su base deben revisarse antes de consultar.",
+					"Comprobación local del ejecutable, sin consultas a objetivos ni fuentes externas.",
 			};
 		}),
 	);
-	let local;
-	try {
-		const response = await request("http://127.0.0.1:5000/api/dbInfo", {
-			signal: AbortSignal.timeout(5000),
-			redirect: "error",
-		});
-		if (!response.ok)
-			throw new Error(`API local respondió HTTP ${response.status}.`);
-		const reader = response.body?.getReader();
-		if (!reader) throw new Error("API local sin respuesta JSON.");
-		let bytes = 0;
-		const chunks = [];
-		try {
-			for (;;) {
-				const { done, value } = await reader.read();
-				if (done) break;
-				bytes += value.byteLength;
-				if (bytes > 16384) {
-					await reader.cancel();
-					throw new Error("Diagnóstico local supera 16 KB.");
-				}
-				chunks.push(Buffer.from(value));
-			}
-		} finally {
-			reader.releaseLock();
-		}
-		const raw = Buffer.concat(chunks).toString("utf8");
-		const info = JSON.parse(raw);
-		if (!info || typeof info !== "object")
-			throw new Error("API local no devolvió un diagnóstico JSON válido.");
-		local = {
-			tool: "cve",
-			status: "available",
-			available: true,
-			detail: "API local disponible en 127.0.0.1:5000",
-			database: raw.slice(0, 1500),
-		};
-	} catch (error) {
-		local = {
-			tool: "cve",
-			status: "error",
-			available: false,
-			detail:
-				`Configura y carga cve-search en 127.0.0.1:5000. ${error.message}`.slice(
-					0,
-					1500,
-				),
-			database: "Servicio local no disponible; puedes consultar NVD en línea.",
-		};
-	}
-	return [
-		...binaries,
-		local,
-		{
-			tool: "nvd",
-			status: "available",
-			available: true,
-			detail:
-				"No requiere instalar un ejecutable. La conectividad HTTPS se comprueba al consultar.",
-			database: "API pública NVD; requiere salida HTTPS desde Kali.",
-		},
-	];
 }
 
 if (!process.argv[1] || process.argv[1].endsWith("kali-diagnostic.mjs")) {

@@ -1,6 +1,6 @@
-# Panel de enumeración
+# Recon workspace — reconocimiento y mapeo
 
-Interfaz local de enumeración de redes para ejecutar Nmap exclusivamente en Kali por SSH, con la aplicación alojada en Windows o en Kali.
+Interfaz local para reconocer activos, mapear hosts, puertos y servicios y generar informes por proyecto. Ejecuta Nmap y consultas de reconocimiento exclusivamente en Kali por SSH, con la aplicación alojada en Windows o en Kali. No incluye análisis de vulnerabilidades, explotación ni postexplotación.
 
 ## Estado de esta entrega
 
@@ -8,15 +8,15 @@ La primera versión implementa un flujo de Nmap: proyecto y objetivos, ejecució
 
 La ejecución conserva los argumentos del comando actual y su proyecto original. Un proveedor global mantiene el seguimiento entre páginas y guarda una referencia para recuperarlo tras recargar mientras el servidor siga activo. Si el servidor pierde el trabajo o SSH no confirma su terminación, se muestra un estado desconocido.
 
-La navegación está separada por rutas para las fases de alcance, reconocimiento, enumeración, análisis, explotación, post-explotación e informe. Alcance y planificación administra proyectos y reglas; Reconocimiento recopila certificados públicos, RDAP y evidencia manual con revisión de candidatos; Enumeración ejecuta Nmap aplicando el plan. Análisis organiza el inventario, consultas y evidencias; Explotación, Post-explotación e Informe quedan pendientes. La interfaz usa tema oscuro fijo con una paleta en negro, blanco y grises. El verde identifica estados exitosos o verificados; el amarillo identifica resultados parciales, advertencias y errores que requieren atención. Los estados conservan sus etiquetas de texto; las acciones y categorías usan colores neutros.
+El flujo consta de cuatro etapas: **Alcance y planificación → Reconocimiento → Enumeración y mapeo → Informes**. Alcance administra proyectos y reglas; Reconocimiento recopila DNS, certificados TLS, certificados públicos, RDAP y evidencia manual con revisión de candidatos; Enumeración ejecuta Nmap aplicando el plan. Informes consolida los datos guardados, sin realizar consultas de red, con vista previa, descarga Markdown, copia e impresión para guardar como PDF. La interfaz usa tema oscuro fijo; la impresión utiliza fondo blanco y excluye menús y controles.
 
 Consulta [Alcance y planificación](docs/ALCANCE-PLANIFICACION.md) para el flujo y las comprobaciones que aplica el MVP. Antes de una ejecución de red es necesario un plan aprobado y un comando dentro de sus límites. La autorización real y sus datos deben completarse por el operador.
 
 Consulta [Reconocimiento](docs/RECONOCIMIENTO.md) para fuentes, filtros, sincronización curl, trazabilidad y límites. Las consultas públicas necesitan permiso pasivo explícito en el plan; la carga manual no hace solicitudes de red. Las consultas HTTPS de crt.sh y RDAP salen de Kali mediante SSH. Los futuros adaptadores activos siguen pendientes.
 
-Consulta [Análisis de vulnerabilidades](docs/ANALISIS-VULNERABILIDADES.md) para buscar CVE en NVD por HTTPS desde Kali usando producto, CVE o CPE con versión del inventario Nmap, consultar bases locales SearchSploit/cve-search, verificar HTTP/TLS con Nikto/testssl.sh y analizar archivos con Trivy. El selector de servicios completa la consulta con los datos recolectados. Las coincidencias conservan evidencia y se registran como candidatas. Nikto y testssl.sh requieren permisos específicos en el plan. La aceptación del flujo SSH contra la instalación Kali del usuario sigue pendiente.
+Consulta [Informes](docs/INFORMES.md) para contenido, exportación, trazabilidad y limitaciones. Se ha eliminado el módulo de análisis y sus adaptadores, rutas y pruebas exclusivas. Al cargar o importar un workspace antiguo se descartan sus datos de análisis y permisos específicos; se conservan los proyectos, planes, reconocimiento, ejecuciones Nmap e incidencias de las fases vigentes. Exporta una copia con la versión anterior si necesitas conservar el análisis retirado.
 
-BloodHound y los adaptadores de enumeración DNS/SMB/LDAP todavía no están implementados. La conexión SSH está preparada, pero requiere validar el flujo con una instancia Kali y una clave configuradas por el usuario.
+Los adaptadores adicionales SMB/LDAP y BloodHound no forman parte de esta entrega. La conexión SSH requiere validar el flujo con una instancia Kali y una clave configuradas por el usuario. El diagnóstico ya no solicita herramientas ni bases de vulnerabilidades; dig y OpenSSL son auxiliares opcionales para comprobaciones manuales (la app consulta DNS y TLS mediante Node.js).
 
 ## Requisitos
 
@@ -41,7 +41,8 @@ La página **Preparación del entorno** (`/preparacion`) aparece encima de las f
 2. En el navbar de cualquier página abre **Configurar Kali** y proporciona host, usuario, ruta local a la clave y, si corresponde, su frase de contraseña.
 3. Comprueba la conexión. En el primer contacto compara la huella SHA-256 mostrada con una fuente confiable de la máquina Kali; acéptala explícitamente y vuelve a comprobar.
 4. En **Alcance y planificación**, crea el proyecto, completa el compromiso y registra la aprobación obtenida fuera de la app.
-5. En **Enumeración**, agrega los destinos permitidos, selecciona los parámetros y aplica explícitamente los límites del plan al comando. Confirma el alcance e inicia dentro de la ventana acordada.
+5. En **Enumeración y mapeo**, agrega los destinos permitidos, selecciona los parámetros y aplica explícitamente los límites del plan al comando. Confirma el alcance e inicia dentro de la ventana acordada.
+6. En **Informes**, selecciona el proyecto, revisa el inventario consolidado y descarga Markdown o pulsa **Imprimir / PDF** y elige **Guardar como PDF** en el navegador.
 
 La configuración SSH se comparte entre todas las fases. Cada operación abre una sesión con la huella fijada; no existe ejecución local ni alternativa automática en tu PC. Al recargar, se comprueba automáticamente la configuración guardada si está completa y tiene una huella aceptada. La verificación dura 15 minutos, se vincula a todos los campos de conexión y se renueva automáticamente al caducar. Si falla, se muestra el motivo y se espera un reintento manual. Un cambio de host o puerto borra la huella anterior. Las operaciones ya iniciadas mantienen su ejecutor original. La frase de una clave cifrada permanece solo en memoria: después de recargar puede ser necesario introducirla de nuevo. No se persisten tokens ni se acepta automáticamente una huella nueva.
 
@@ -74,6 +75,6 @@ Las pruebas cubren CLI, importación, secretos, asociación de historial, estado
 - Interfaz basada en shadcn/ui, con CodeMirror para el editor de comandos.
 - Persistencia en el navegador; no hay base de datos.
 - El catálogo vive en `src/lib/nmap-options.ts`; el parser y generador en `src/lib/nmap-command.ts`, reexportados por `src/lib/nmap.ts`. El seguimiento global vive en `WorkspaceProvider` y el ciclo de procesos en `src/server/job-manager.ts`.
-- Consulta [la especificación del MVP](docs/MVP-enumeracion.md) para el alcance completo y las etapas.
+- Consulta [la especificación inicial del MVP](docs/MVP-enumeracion.md) como referencia histórica; el alcance vigente es reconocimiento, mapeo e informes, según este README.
 
 

@@ -11,11 +11,8 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AlcanceRouteImport } from './routes/alcance'
-import { Route as AnalisisRouteImport } from './routes/analisis'
 import { Route as EnumeracionRouteImport } from './routes/enumeracion'
-import { Route as ExplotacionRouteImport } from './routes/explotacion'
 import { Route as InformeRouteImport } from './routes/informe'
-import { Route as PostExplotacionRouteImport } from './routes/post-explotacion'
 import { Route as PreparacionRouteImport } from './routes/preparacion'
 import { Route as ReconocimientoRouteImport } from './routes/reconocimiento'
 
@@ -29,29 +26,14 @@ const AlcanceRoute = AlcanceRouteImport.update({
   path: '/alcance',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AnalisisRoute = AnalisisRouteImport.update({
-  id: '/analisis',
-  path: '/analisis',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const EnumeracionRoute = EnumeracionRouteImport.update({
   id: '/enumeracion',
   path: '/enumeracion',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ExplotacionRoute = ExplotacionRouteImport.update({
-  id: '/explotacion',
-  path: '/explotacion',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const InformeRoute = InformeRouteImport.update({
   id: '/informe',
   path: '/informe',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PostExplotacionRoute = PostExplotacionRouteImport.update({
-  id: '/post-explotacion',
-  path: '/post-explotacion',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PreparacionRoute = PreparacionRouteImport.update({
@@ -68,22 +50,16 @@ const ReconocimientoRoute = ReconocimientoRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/alcance': typeof AlcanceRoute
-  '/analisis': typeof AnalisisRoute
   '/enumeracion': typeof EnumeracionRoute
-  '/explotacion': typeof ExplotacionRoute
   '/informe': typeof InformeRoute
-  '/post-explotacion': typeof PostExplotacionRoute
   '/preparacion': typeof PreparacionRoute
   '/reconocimiento': typeof ReconocimientoRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/alcance': typeof AlcanceRoute
-  '/analisis': typeof AnalisisRoute
   '/enumeracion': typeof EnumeracionRoute
-  '/explotacion': typeof ExplotacionRoute
   '/informe': typeof InformeRoute
-  '/post-explotacion': typeof PostExplotacionRoute
   '/preparacion': typeof PreparacionRoute
   '/reconocimiento': typeof ReconocimientoRoute
 }
@@ -91,11 +67,8 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/alcance': typeof AlcanceRoute
-  '/analisis': typeof AnalisisRoute
   '/enumeracion': typeof EnumeracionRoute
-  '/explotacion': typeof ExplotacionRoute
   '/informe': typeof InformeRoute
-  '/post-explotacion': typeof PostExplotacionRoute
   '/preparacion': typeof PreparacionRoute
   '/reconocimiento': typeof ReconocimientoRoute
 }
@@ -104,33 +77,24 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/alcance'
-    | '/analisis'
     | '/enumeracion'
-    | '/explotacion'
     | '/informe'
-    | '/post-explotacion'
     | '/preparacion'
     | '/reconocimiento'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/alcance'
-    | '/analisis'
     | '/enumeracion'
-    | '/explotacion'
     | '/informe'
-    | '/post-explotacion'
     | '/preparacion'
     | '/reconocimiento'
   id:
     | '__root__'
     | '/'
     | '/alcance'
-    | '/analisis'
     | '/enumeracion'
-    | '/explotacion'
     | '/informe'
-    | '/post-explotacion'
     | '/preparacion'
     | '/reconocimiento'
   fileRoutesById: FileRoutesById
@@ -138,11 +102,8 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AlcanceRoute: typeof AlcanceRoute
-  AnalisisRoute: typeof AnalisisRoute
   EnumeracionRoute: typeof EnumeracionRoute
-  ExplotacionRoute: typeof ExplotacionRoute
   InformeRoute: typeof InformeRoute
-  PostExplotacionRoute: typeof PostExplotacionRoute
   PreparacionRoute: typeof PreparacionRoute
   ReconocimientoRoute: typeof ReconocimientoRoute
 }
@@ -163,13 +124,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AlcanceRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/analisis': {
-      id: '/analisis'
-      path: '/analisis'
-      fullPath: '/analisis'
-      preLoaderRoute: typeof AnalisisRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/enumeracion': {
       id: '/enumeracion'
       path: '/enumeracion'
@@ -177,25 +131,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EnumeracionRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/explotacion': {
-      id: '/explotacion'
-      path: '/explotacion'
-      fullPath: '/explotacion'
-      preLoaderRoute: typeof ExplotacionRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/informe': {
       id: '/informe'
       path: '/informe'
       fullPath: '/informe'
       preLoaderRoute: typeof InformeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/post-explotacion': {
-      id: '/post-explotacion'
-      path: '/post-explotacion'
-      fullPath: '/post-explotacion'
-      preLoaderRoute: typeof PostExplotacionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/preparacion': {
@@ -218,11 +158,8 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AlcanceRoute: AlcanceRoute,
-  AnalisisRoute: AnalisisRoute,
   EnumeracionRoute: EnumeracionRoute,
-  ExplotacionRoute: ExplotacionRoute,
   InformeRoute: InformeRoute,
-  PostExplotacionRoute: PostExplotacionRoute,
   PreparacionRoute: PreparacionRoute,
   ReconocimientoRoute: ReconocimientoRoute,
 }

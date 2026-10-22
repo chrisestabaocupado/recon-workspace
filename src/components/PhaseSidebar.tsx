@@ -1,13 +1,10 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
-	Activity,
 	BookOpenCheck,
-	Crosshair,
 	FileText,
 	LayoutDashboard,
 	Radar,
 	ScanSearch,
-	ShieldAlert,
 	Wrench,
 } from "lucide-react";
 import { Badge } from "#/components/ui/badge";
@@ -27,26 +24,13 @@ export const phases = [
 		icon: Radar,
 		status: null,
 	},
-	{ to: "/enumeracion", label: "Enumeración", icon: ScanSearch, status: null },
 	{
-		to: "/analisis",
-		label: "Análisis de vulnerabilidades",
-		icon: ShieldAlert,
+		to: "/enumeracion",
+		label: "Enumeración y mapeo",
+		icon: ScanSearch,
 		status: null,
 	},
-	{
-		to: "/explotacion",
-		label: "Explotación",
-		icon: Crosshair,
-		status: "Pendiente",
-	},
-	{
-		to: "/post-explotacion",
-		label: "Post-explotación",
-		icon: Activity,
-		status: "Pendiente",
-	},
-	{ to: "/informe", label: "Informe", icon: FileText, status: "Pendiente" },
+	{ to: "/informe", label: "Informes", icon: FileText, status: null },
 ] as const;
 
 export function PhaseSidebar() {
@@ -76,7 +60,7 @@ export function PhaseSidebar() {
 				Preparación del entorno
 			</Link>
 			<div className="mb-3 px-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-				Fases del pentesting
+				Reconocimiento y mapeo
 			</div>
 			{project && (
 				<div className="mb-3 break-words px-2 text-sm font-medium">
@@ -84,7 +68,7 @@ export function PhaseSidebar() {
 				</div>
 			)}
 			<nav
-				aria-label="Fases del pentesting"
+				aria-label="Fases de reconocimiento y mapeo"
 				className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1"
 			>
 				{phases.map(({ to, label, icon: Icon, status }, index) => {
@@ -139,7 +123,7 @@ export function PhaseMobileNav() {
 
 	return (
 		<nav
-			aria-label="Fases del pentesting"
+			aria-label="Fases de reconocimiento y mapeo"
 			className="flex min-w-0 max-w-full shrink-0 gap-1 overflow-x-auto border-b bg-background px-3 py-2 md:hidden"
 		>
 			<Link
@@ -158,15 +142,9 @@ export function PhaseMobileNav() {
 			</Link>
 			{phases.map(({ to }, index) => {
 				const active = pathname === to;
-				const shortLabel = [
-					"Alcance",
-					"Reconocimiento",
-					"Enumeración",
-					"Análisis",
-					"Explotación",
-					"Post",
-					"Informe",
-				][index];
+				const shortLabel = ["Alcance", "Reconocimiento", "Mapeo", "Informes"][
+					index
+				];
 				return (
 					<Link
 						key={to}

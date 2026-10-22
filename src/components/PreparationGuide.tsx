@@ -101,9 +101,9 @@ const tools = [
 		"Auxiliar · no sustituye el runner de la app",
 	],
 	[
-		"Nikto / BloodHound / DNS, SMB y LDAP",
-		"Adaptadores adicionales",
-		"Pendientes de integración",
+		"dig / OpenSSL",
+		"Comprobaciones manuales de DNS y certificados TLS",
+		"Opcionales · la app utiliza DNS y TLS de Node.js",
 	],
 ];
 
@@ -161,7 +161,7 @@ export function PreparationGuide() {
 				<Command
 					label="Kali · Bash"
 					command={
-						"sudo apt update\nsudo apt install openssh-server nmap nodejs curl ca-certificates\ncat /etc/os-release\nnode --version\nnmap --version\ncommand -v node nmap"
+						"sudo apt update\nsudo apt install openssh-server nmap nodejs curl ca-certificates bind9-dnsutils openssl\ncat /etc/os-release\nnode --version\nnmap --version\ncommand -v node nmap dig openssl"
 					}
 				/>
 				<p>

@@ -1,4 +1,3 @@
-import { type AnalysisData, validateAnalysisData } from "./analysis.ts";
 import type { ExecutionSnapshot, JobState } from "./execution.ts";
 import { type KaliExecutor, validateExecutor } from "./kali.ts";
 import { quoteArg, tokenizeCommand } from "./nmap-command.ts";
@@ -60,7 +59,6 @@ export type WorkspaceProject = {
 	plan?: ScopePlan;
 	planHistory?: ScopePlan[];
 	recon?: ReconData;
-	analysis?: AnalysisData;
 };
 export type WorkspaceData = {
 	pendingOperations?: PendingOperation[];
@@ -231,10 +229,6 @@ export function validateWorkspace(value: unknown): WorkspaceData {
 			throw new Error("Hay IDs de objetivos duplicados.");
 		return {
 			id: str(project.id, "ID de proyecto", 128),
-			analysis:
-				project.analysis === undefined
-					? undefined
-					: validateAnalysisData(project.analysis),
 			failures: validateFailures(project.failures),
 			checkHistory: validateCheckHistory(project.checkHistory),
 			recon:

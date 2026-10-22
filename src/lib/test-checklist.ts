@@ -306,7 +306,7 @@ export function projectChecklist(
 	};
 	for (const c of projectCheckAttempts(project)) add(c);
 	for (const p of options.pending ?? [])
-		if (p.projectId === project.id && p.phase !== "analysis")
+		if (p.projectId === project.id)
 			add({
 				id: `pending:${p.id}`,
 				phase: p.phase,

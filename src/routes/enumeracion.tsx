@@ -507,10 +507,10 @@ function Workspace() {
 					</div>
 					<div>
 						<div className="text-sm font-semibold tracking-tight">
-							Enumeración
+							Enumeración y mapeo
 						</div>
 						<div className="text-[11px] text-muted-foreground">
-							Pentest workspace
+							Recon workspace
 						</div>
 					</div>
 					<Separator

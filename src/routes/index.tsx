@@ -87,7 +87,7 @@ function ProjectDashboard() {
 							<Shield className="size-5" />
 						</div>
 						<div>
-							<div className="text-sm font-semibold">Pentest workspace</div>
+							<div className="text-sm font-semibold">Recon workspace</div>
 							<div className="text-[11px] text-muted-foreground">
 								Dashboard de proyectos
 							</div>
@@ -134,8 +134,8 @@ function ProjectDashboard() {
 							Tus proyectos
 						</h1>
 						<p className="mb-0 mt-2 text-sm text-muted-foreground">
-							Elige un proyecto para revisar su alcance y avanzar por las fases
-							de la evaluación.
+							Organiza el alcance, reconoce activos y mapea hosts y servicios
+							para generar tus informes.
 						</p>
 					</div>
 					<NewProjectButton />
@@ -215,8 +215,8 @@ function ProjectDashboard() {
 									</p>
 									<p className="m-0 text-xs text-muted-foreground">
 										{project.targets.length} objetivos · {project.executions}{" "}
-										ejecuciones · {project.analysis?.findings.length ?? 0}{" "}
-										hallazgos
+										ejecuciones · {project.recon?.assets.length ?? 0} activos
+										descubiertos
 									</p>
 								</CardHeader>
 								<CardContent className="grid gap-4">

@@ -21,9 +21,7 @@ export function ExecutionRequirementsNotice() {
 			? "Enumeración"
 			: pathname === "/reconocimiento"
 				? "Reconocimiento"
-				: pathname === "/analisis"
-					? "Análisis"
-					: null;
+				: null;
 	if (!hydrated || !module || kaliReady) return null;
 	const configured = Boolean(
 		ssh.host.trim() && ssh.username.trim() && ssh.privateKeyPath.trim(),
@@ -58,7 +56,7 @@ export function ExecutionRequirementsNotice() {
 						está deshabilitada; necesitas un servidor Kali Linux por SSH, con
 						Node.js 22 o superior y Nmap disponible.
 					</p>
-					{(module === "Reconocimiento" || module === "Análisis") && (
+					{module === "Reconocimiento" && (
 						<p className="m-0 text-xs">
 							Puedes seguir revisando activos e importar evidencias manualmente.
 						</p>

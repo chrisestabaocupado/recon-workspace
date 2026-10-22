@@ -12,35 +12,15 @@ export type KaliExecutor = Pick<
 >;
 export type KaliAccess = { mode: "ssh"; ssh: SshSettings; kaliToken: string };
 export const kaliToolHelp = {
-	searchsploit: {
-		label: "SearchSploit",
-		command: "sudo apt install exploitdb",
-		url: "https://www.kali.org/tools/exploitdb/",
+	dig: {
+		label: "dig · registros DNS",
+		command: "sudo apt install bind9-dnsutils",
+		url: "https://www.kali.org/tools/bind9/",
 	},
-	nikto: {
-		label: "Nikto",
-		command: "sudo apt install nikto",
-		url: "https://www.kali.org/tools/nikto/",
-	},
-	testssl: {
-		label: "testssl.sh",
-		command: "sudo apt install testssl.sh",
-		url: "https://www.kali.org/tools/testssl.sh/",
-	},
-	trivy: {
-		label: "Trivy",
-		command: "sudo apt install trivy",
-		url: "https://www.kali.org/tools/trivy/",
-	},
-	cve: {
-		label: "cve-search local",
-		command: "",
-		url: "https://github.com/cve-search/cve-search",
-	},
-	nvd: {
-		label: "NVD en línea",
-		command: "",
-		url: "https://nvd.nist.gov/developers/vulnerabilities",
+	openssl: {
+		label: "OpenSSL · certificados TLS",
+		command: "sudo apt install openssl",
+		url: "https://www.kali.org/tools/openssl/",
 	},
 } as const;
 export type KaliToolCheck = {

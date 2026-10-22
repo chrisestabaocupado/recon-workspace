@@ -7,7 +7,7 @@ import { KaliConnectionButton } from "./KaliConnection";
 export function PhasePage({
 	title,
 	description,
-	eyebrow = "Fases del pentesting",
+	eyebrow = "Reconocimiento y mapeo",
 	children,
 }: {
 	title: string;
@@ -23,10 +23,10 @@ export function PhasePage({
 				</div>
 				<div>
 					<div className="text-sm font-semibold tracking-tight">
-						Pentest workspace
+						Recon workspace
 					</div>
 					<div className="text-[11px] text-muted-foreground">
-						Proyectos y fases de evaluación
+						Reconocimiento, mapeo e informes
 					</div>
 				</div>
 				<div className="ml-auto">

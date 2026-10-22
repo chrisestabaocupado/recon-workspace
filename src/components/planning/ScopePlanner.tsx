@@ -346,10 +346,6 @@ function ProjectPlan({
 				"Límites",
 				`Puertos: ${saved.allowedPorts}; direcciones por ejecución: ${saved.maxHosts}; paquetes/s: ${saved.maxRate}; timeout: ${saved.maxDurationSeconds}s`,
 			],
-			[
-				"Verificaciones de análisis",
-				`Nikto: ${saved.analysisTools?.nikto ? "permitido" : "no permitido"}; testssl.sh: ${saved.analysisTools?.testssl ? "permitido" : "no permitido"}. Una IP y puerto por prueba. Estos adaptadores no limitan paquetes/s; requieren aceptar su ritmo propio. Nikto espera 1 segundo entre pruebas.`,
-			],
 			["Actividades prohibidas", saved.prohibitedActivities],
 			["Criterios de parada", saved.stopConditions],
 			[
@@ -583,7 +579,7 @@ function ProjectPlan({
 							<div className="grid gap-3 sm:grid-cols-2">
 								<label
 									htmlFor={`passive-${project.id}`}
-									className="flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm"
+									className="flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm sm:col-span-2"
 								>
 									<Checkbox
 										id={`passive-${project.id}`}
@@ -594,32 +590,6 @@ function ProjectPlan({
 									/>
 									Reconocimiento pasivo en fuentes públicas
 								</label>
-								{(["nikto", "testssl"] as const).map((tool) => (
-									<label
-										key={tool}
-										htmlFor={`analysis-${tool}-${project.id}`}
-										className="flex items-start gap-2 text-sm"
-									>
-										<Checkbox
-											id={`analysis-${tool}-${project.id}`}
-											checked={draft.analysisTools?.[tool] ?? false}
-											onCheckedChange={(checked) =>
-												update("analysisTools", {
-													nikto: draft.analysisTools?.nikto ?? false,
-													testssl: draft.analysisTools?.testssl ?? false,
-													[tool]: checked === true,
-												})
-											}
-										/>
-										<span>
-											Permitir verificaciones con{" "}
-											{tool === "nikto" ? "Nikto" : "testssl.sh"}. Una IP y
-											puerto, con ritmo propio de la herramienta (sin límite de
-											paquetes/s; Nikto pausa 1 segundo entre pruebas). Revisar
-											las actividades prohibidas del compromiso.
-										</span>
-									</label>
-								))}
 								{Object.entries(scopeTechniques).map(([key, label]) => (
 									<label
 										key={key}
@@ -642,7 +612,7 @@ function ProjectPlan({
 									</label>
 								))}
 							</div>
-							<div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+							<div className="grid items-start gap-5 sm:grid-cols-2 xl:grid-cols-4 [&>div>label]:min-h-8">
 								<PlanField
 									label="Puertos permitidos (TCP/UDP)"
 									value={draft.allowedPorts}

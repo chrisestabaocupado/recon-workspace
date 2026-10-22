@@ -324,7 +324,7 @@ export function ReconWorkspace() {
 						try {
 							download(
 								exportWorkspace(workspace),
-								"pentest-workspace.json",
+								"one-two-three-workspace.json",
 								"application/json",
 							);
 						} catch (e) {

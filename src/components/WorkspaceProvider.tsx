@@ -193,9 +193,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 		const failureContext = {
 			phase: (window.location.pathname.startsWith("/reconocimiento")
 				? "recon"
-				: window.location.pathname.startsWith("/analisis")
-					? "analysis"
-					: "enumeration") as "recon" | "enumeration" | "analysis",
+				: "enumeration") as "recon" | "enumeration",
 			stage: "Verificar SSH y herramientas",
 			target: `${captured.username}@${captured.host}:${captured.port}`,
 		};
@@ -317,9 +315,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 				recordFailure(workspace.selectedProjectId, {
 					phase: window.location.pathname.startsWith("/reconocimiento")
 						? "recon"
-						: window.location.pathname.startsWith("/analisis")
-							? "analysis"
-							: "enumeration",
+						: "enumeration",
 					stage: "Guardar datos en el navegador",
 					error: `${result.message} El registro está en memoria; descarga una copia antes de cerrar.`,
 				});

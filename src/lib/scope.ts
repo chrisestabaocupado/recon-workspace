@@ -21,7 +21,6 @@ export type ScopePlan = {
 	authorizationReference: string;
 	approvalAttested: boolean;
 	passiveRecon: boolean;
-	analysisTools?: { nikto: boolean; testssl: boolean };
 	approvedAt?: string;
 	includes: string[];
 	excludes: string[];
@@ -56,7 +55,6 @@ export const newScopePlan = (): ScopePlan => ({
 	authorizationReference: "",
 	approvalAttested: false,
 	passiveRecon: false,
-	analysisTools: { nikto: false, testssl: false },
 	includes: [],
 	excludes: [],
 	windowStart: "",
@@ -237,17 +235,6 @@ export function validateScopePlan(value: unknown): ScopePlan {
 	if (item.passiveRecon !== undefined && typeof item.passiveRecon !== "boolean")
 		throw new Error("Permiso de reconocimiento pasivo inválido.");
 	result.passiveRecon = item.passiveRecon === true;
-	if (item.analysisTools !== undefined) {
-		const tools = item.analysisTools as Record<string, unknown>;
-		if (
-			!tools ||
-			typeof tools !== "object" ||
-			typeof tools.nikto !== "boolean" ||
-			typeof tools.testssl !== "boolean"
-		)
-			throw new Error("Permisos de análisis inválidos.");
-		result.analysisTools = { nikto: tools.nikto, testssl: tools.testssl };
-	}
 	for (const key of ["includes", "excludes"] as const) {
 		if (
 			!Array.isArray(item[key]) ||

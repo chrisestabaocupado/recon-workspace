@@ -4,7 +4,7 @@ import type { WorkspaceData } from "./storage.ts";
 
 export type OperationFailure = {
 	id: string;
-	phase: "recon" | "enumeration" | "analysis";
+	phase: "recon" | "enumeration";
 	stage: string;
 	date: string;
 	lastAt: string;
@@ -26,9 +26,10 @@ export function validatePendingOperations(value: unknown): PendingOperation[] {
 	if (value === undefined) return [];
 	if (!Array.isArray(value) || value.length > 20)
 		throw new Error("Operaciones pendientes inválidas.");
-	const validated = validateFailures(value);
+	const current = value.filter((raw) => raw?.phase !== "analysis");
+	const validated = validateFailures(current);
 	return validated.map((f, index) => {
-		const id = value[index].projectId;
+		const id = current[index].projectId;
 		if (id !== null && (typeof id !== "string" || !id || id.length > 128))
 			throw new Error("Proyecto de operación pendiente inválido.");
 		return { ...f, projectId: id };
@@ -61,96 +62,97 @@ export function validateFailures(value: unknown): OperationFailure[] {
 	if (value === undefined) return [];
 	if (!Array.isArray(value) || value.length > FAILURE_LIMIT)
 		throw new Error("Registro de incidencias inválido o demasiado extenso.");
-	const result = value.map((raw): OperationFailure => {
-		if (!raw || typeof raw !== "object")
-			throw new Error("Incidencia inválida.");
-		const text = (key: string, optional = false): string | undefined => {
-			const v = raw[key];
-			if (optional && v === undefined) return undefined;
-			if (typeof v !== "string" || !v.trim() || v.length > 100000)
-				throw new Error(`Incidencia: ${key} inválido.`);
-			return safe(v);
-		};
-		if (
-			raw.phase !== "recon" &&
-			raw.phase !== "enumeration" &&
-			raw.phase !== "analysis"
-		)
-			throw new Error("Fase de incidencia inválida.");
-		const required = (key: string) => {
-			const v = text(key);
-			if (v === undefined) throw new Error("Incidencia incompleta.");
-			return v;
-		};
-		const date = required("date");
-		const lastAt = required("lastAt");
-		if (
-			!Number.isFinite(Date.parse(date)) ||
-			!Number.isFinite(Date.parse(lastAt)) ||
-			Date.parse(lastAt) < Date.parse(date)
-		)
-			throw new Error("Fecha de incidencia inválida.");
-		if (!Number.isSafeInteger(raw.occurrences) || raw.occurrences < 1)
-			throw new Error("Contador de incidencias inválido.");
-		const command = text("command", true);
-		let secrets: string[] = [];
-		try {
+	// Migrate workspaces from the retired analysis module without losing mapping data.
+	const result = value
+		.filter((raw) => raw?.phase !== "analysis")
+		.map((raw): OperationFailure => {
+			if (!raw || typeof raw !== "object")
+				throw new Error("Incidencia inválida.");
+			const text = (key: string, optional = false): string | undefined => {
+				const v = raw[key];
+				if (optional && v === undefined) return undefined;
+				if (typeof v !== "string" || !v.trim() || v.length > 100000)
+					throw new Error(`Incidencia: ${key} inválido.`);
+				return safe(v);
+			};
+			if (raw.phase !== "recon" && raw.phase !== "enumeration")
+				throw new Error("Fase de incidencia inválida.");
+			const required = (key: string) => {
+				const v = text(key);
+				if (v === undefined) throw new Error("Incidencia incompleta.");
+				return v;
+			};
+			const date = required("date");
+			const lastAt = required("lastAt");
+			if (
+				!Number.isFinite(Date.parse(date)) ||
+				!Number.isFinite(Date.parse(lastAt)) ||
+				Date.parse(lastAt) < Date.parse(date)
+			)
+				throw new Error("Fecha de incidencia inválida.");
+			if (!Number.isSafeInteger(raw.occurrences) || raw.occurrences < 1)
+				throw new Error("Contador de incidencias inválido.");
+			const command = text("command", true);
+			let secrets: string[] = [];
+			try {
+				if (command) {
+					const args = tokenizeCommand(raw.command);
+					secrets = secretValues(args);
+					for (let i = 0; i < args.length; i++) {
+						const scriptArgs =
+							args[i] === "--script-args"
+								? args[i + 1]
+								: args[i].startsWith("--script-args=")
+									? args[i].slice(14)
+									: undefined;
+						if (scriptArgs)
+							for (const match of scriptArgs.matchAll(
+								/=\s*("[^"]*"|'[^']*'|[^,{}\s]+)/g,
+							))
+								secrets.push(match[1].replace(/^["']|["']$/g, ""));
+					}
+				}
+			} catch {
+				/* Invalid imported commands are redacted below. */
+			}
+			let sanitizedCommand = command;
 			if (command) {
-				const args = tokenizeCommand(raw.command);
-				secrets = secretValues(args);
-				for (let i = 0; i < args.length; i++) {
-					const scriptArgs =
-						args[i] === "--script-args"
-							? args[i + 1]
-							: args[i].startsWith("--script-args=")
-								? args[i].slice(14)
-								: undefined;
-					if (scriptArgs)
-						for (const match of scriptArgs.matchAll(
-							/=\s*("[^"]*"|'[^']*'|[^,{}\s]+)/g,
-						))
-							secrets.push(match[1].replace(/^["']|["']$/g, ""));
+				try {
+					sanitizedCommand = redactArgs(tokenizeCommand(command))
+						.map(quoteArg)
+						.join(" ");
+				} catch {
+					sanitizedCommand = command.replace(
+						/--script-args(?:=|\s+).*/s,
+						"--script-args [REDACTADO]",
+					);
 				}
 			}
-		} catch {
-			/* Invalid imported commands are redacted below. */
-		}
-		let sanitizedCommand = command;
-		if (command) {
-			try {
-				sanitizedCommand = redactArgs(tokenizeCommand(command))
-					.map(quoteArg)
-					.join(" ");
-			} catch {
-				sanitizedCommand = command.replace(
-					/--script-args(?:=|\s+).*/s,
-					"--script-args [REDACTADO]",
-				);
-			}
-		}
-		return {
-			id: required("id"),
-			phase: raw.phase,
-			stage: required("stage"),
-			date,
-			lastAt,
-			occurrences: raw.occurrences,
-			error: redactText(required("error"), secrets),
-			source: text("source", true),
-			target: text("target", true),
-			command: sanitizedCommand,
-			jobId: text("jobId", true),
-			scopeRevision:
-				Number.isSafeInteger(raw.scopeRevision) && raw.scopeRevision > 0
-					? raw.scopeRevision
-					: undefined,
-		};
-	});
+			return {
+				id: required("id"),
+				phase: raw.phase,
+				stage: required("stage"),
+				date,
+				lastAt,
+				occurrences: raw.occurrences,
+				error: redactText(required("error"), secrets),
+				source: text("source", true),
+				target: text("target", true),
+				command: sanitizedCommand,
+				jobId: text("jobId", true),
+				scopeRevision:
+					Number.isSafeInteger(raw.scopeRevision) && raw.scopeRevision > 0
+						? raw.scopeRevision
+						: undefined,
+			};
+		});
 	if (new Set(result.map((f) => f.id)).size !== result.length)
 		throw new Error("IDs de incidencias duplicados.");
 	return result;
 }
 export function makeFailure(input: FailureInput): OperationFailure {
+	if (input.phase !== "recon" && input.phase !== "enumeration")
+		throw new Error("Fase de incidencia inválida.");
 	const date = input.date ?? new Date().toISOString();
 	return validateFailures([
 		{
@@ -207,7 +209,7 @@ export function failuresMarkdown(failures: OperationFailure[]): string {
 		"Un fallo de consulta no demuestra que el activo o el registro no exista. Estos registros no son evidencias de vulnerabilidades.",
 		"",
 		...failures.flatMap((f) => [
-			`### ${literal(f.stage)} · ${f.phase === "recon" ? "Reconocimiento" : f.phase === "analysis" ? "Análisis" : "Enumeración"}`,
+			`### ${literal(f.stage)} · ${f.phase === "recon" ? "Reconocimiento" : "Enumeración"}`,
 			`ID: ${literal(f.id)}; fecha: ${f.date}; última aparición: ${f.lastAt}; apariciones: ${f.occurrences}`,
 			`Plan: ${f.scopeRevision ? `r${f.scopeRevision}` : "sin revisión registrada"}`,
 			...(f.source ? [`Fuente: ${literal(f.source)}`] : []),

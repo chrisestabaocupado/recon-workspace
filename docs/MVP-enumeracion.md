@@ -1,10 +1,12 @@
 # Panel de enumeración — especificación inicial
 
+> **Documento histórico, sustituido en cuanto al alcance.** Desde el 22 de octubre de 2026 el aplicativo se limita a alcance, reconocimiento, enumeración/mapeo e informes. El análisis de vulnerabilidades, la explotación y la postexplotación están fuera de alcance y se retiró su implementación. Las propuestas siguientes no constituyen un roadmap vigente. Consulta el [README](../README.md) y [Informes](INFORMES.md).
+
 Fecha: 1 de octubre de 2026.
 
 Estado: recorrido inicial de Nmap implementado para ejecución exclusiva en Kali por SSH, con configuración global en el navbar, con cobertura parcial del catálogo de parámetros. Alcance y planificación administra proyectos y reglas que se aplican a Enumeración. Reconocimiento integra crt.sh, RDAP y evidencia manual con revisión y exportación. Las otras cuatro fases permanecen pendientes. Nikto, BloodHound y los demás módulos siguen en el roadmap; falta validar SSH contra una instalación Kali real.
 
-Consulta [el módulo de planificación](ALCANCE-PLANIFICACION.md) para campos, revisiones, comprobaciones de destinos y límites operativos. La app registra autorizaciones obtenidas fuera de ella. El [módulo de análisis](ANALISIS-VULNERABILIDADES.md) ya implementa resumen de inventario, recomendaciones, consultas locales SearchSploit/cve-search y adaptadores Nikto/testssl.sh/Trivy; su aceptación en Kali real sigue pendiente. Esta ampliación sustituye el estado pendiente de análisis y Nikto descrito en la especificación inicial.
+Consulta [el módulo de planificación](ALCANCE-PLANIFICACION.md) para campos, revisiones, comprobaciones de destinos y límites operativos. La app registra autorizaciones obtenidas fuera de ella. La ampliación de análisis que se implementó posteriormente fue retirada al redefinir el alcance del aplicativo.
 
 Correcciones verificadas: fidelidad de argumentos CLI, bloqueo de comandos inválidos, seguimiento global entre páginas y recargas, historial ligado al proyecto original, cancelación confirmada y timeout, validación de JSON/cuota, depuración de credenciales y captura/importación/descarga de XML. Consulta [la validación actual](VALIDACION-MVP.md). Las secciones siguientes describen el objetivo completo; no todos sus criterios están implementados todavía.
 

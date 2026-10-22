@@ -1,10 +1,8 @@
 import type { KaliToolCheck } from "./kali.ts";
 
 export const installableTools = {
-	searchsploit: "exploitdb",
-	nikto: "nikto",
-	testssl: "testssl.sh",
-	trivy: "trivy",
+	dig: "bind9-dnsutils",
+	openssl: "openssl",
 } as const;
 export type InstallableTool = keyof typeof installableTools;
 export function missingInstallableTools(tools: KaliToolCheck[]) {
@@ -18,7 +16,7 @@ export function validateInstallTools(value: unknown): InstallableTool[] {
 	if (
 		!Array.isArray(value) ||
 		!value.length ||
-		value.length > 4 ||
+		value.length > Object.keys(installableTools).length ||
 		new Set(value).size !== value.length ||
 		value.some(
 			(tool) =>
