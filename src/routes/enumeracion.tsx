@@ -405,7 +405,7 @@ function Workspace() {
 	function saveExport() {
 		try {
 			downloadText(
-				"one-two-three-workspace.json",
+				"recon-workspace.json",
 				exportWorkspace(workspace),
 				"application/json",
 			);
@@ -543,7 +543,7 @@ function Workspace() {
 							Enumeración y mapeo
 						</div>
 						<div className="text-[11px] text-muted-foreground">
-							Recon workspace
+							recon-workspace
 						</div>
 					</div>
 					<Separator

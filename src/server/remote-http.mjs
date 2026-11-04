@@ -24,7 +24,7 @@ try {
 		credentials: "omit",
 		headers: {
 			Accept: "application/rdap+json, application/json",
-			"User-Agent": "one-two-three-recon/1.0",
+			"User-Agent": "recon-workspace/1.0",
 		},
 	});
 	const reader = response.body?.getReader();

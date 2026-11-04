@@ -69,7 +69,7 @@ function installRemoteRunner(connection: Client, signal: AbortSignal) {
 					done(homeError ?? new Error("No pude resolver el home remoto."));
 					return;
 				}
-				const directory = path.posix.join(home, ".one-two-three");
+				const directory = path.posix.join(home, ".recon-workspace");
 				const upload = () => {
 					const file = sftp.createWriteStream(
 						path.posix.join(directory, "runner.mjs"),
@@ -156,7 +156,7 @@ function launchRemote(settings: SshSettings): Launch {
 			signal.throwIfAborted();
 			return await new Promise<Transport>((resolve, reject) => {
 				connection.exec(
-					"exec node ~/.one-two-three/runner.mjs",
+					"exec node ~/.recon-workspace/runner.mjs",
 					(error, stream) => {
 						if (error) {
 							reject(error);
@@ -224,7 +224,7 @@ export const verifySsh = createServerFn({ method: "POST" })
 			await installRemoteRunner(connection, signal);
 			await execText(
 				connection,
-				"node --check ~/.one-two-three/runner.mjs",
+				"node --check ~/.recon-workspace/runner.mjs",
 				signal,
 			);
 			return {

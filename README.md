@@ -1,4 +1,4 @@
-# Recon workspace — reconocimiento y mapeo
+# recon-workspace — reconocimiento y mapeo
 
 Interfaz local para reconocer activos, mapear hosts, puertos y servicios y generar informes por proyecto. Ejecuta Nmap y consultas de reconocimiento exclusivamente en Kali por SSH, con la aplicación alojada en Windows o en Kali. No incluye análisis de vulnerabilidades, explotación ni postexplotación.
 
@@ -55,6 +55,8 @@ El botón **Terminal** del navbar abre un shell interactivo en ese mismo Kali, c
 Las páginas de Reconocimiento y Enumeración incluyen un checklist por proyecto con último resultado, pendientes e historial de intentos por revisión del plan; permite copiar o descargar el checklist. Conserva hasta 500 resultados por proyecto y reconstruye los datos ya guardados. También incluyen un registro persistente de incidencias, con botones para copiarlo o descargarlo. La exportación JSON conserva los errores y el informe Markdown de Reconocimiento también los incluye. Se retienen las últimas 300 incidencias por proyecto y 300 sin proyecto; los intentos previos no registrados no se recuperan automáticamente.
 
 Proyectos, objetivos, configuración de conexión (sin claves privadas ni frases de contraseña) e historial compacto se guardan en el `localStorage` del perfil del navegador. Usa **Exportar** e **Importar** para trasladarlos entre Kali y Windows. Las importaciones JSON se validan y admiten hasta 5 MB; los errores de cuota se muestran y los datos corruptos se conservan hasta que el usuario decida reemplazarlos.
+
+El cambio de nombre a `recon-workspace` conserva las claves de almacenamiento anteriores para mantener los datos del navegador. Las nuevas exportaciones se descargan como `recon-workspace.json`; también se admiten exportaciones de `one-two-three`. El runner remoto se instala en `~/.recon-workspace/`.
 
 Cada proyecto conserva las últimas diez ejecuciones con un extracto de hasta 7.000 caracteres. Los logs del servidor retienen hasta 1.500.000 caracteres y muestran un aviso cuando la salida es parcial. El XML se captura por separado, desde `-oX -`, `-oX archivo.xml` o `-oA base`, hasta 8 MB; archivos mayores o rutas con plantillas de fecha se descargan directamente del ejecutor. Descarga los XML disponibles antes de reiniciar el servidor: los trabajos y artefactos viven en memoria.
 

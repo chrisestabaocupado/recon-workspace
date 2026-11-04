@@ -4,7 +4,7 @@ import { PreparationGuide } from "#/components/PreparationGuide";
 
 export const Route = createFileRoute("/preparacion")({
 	head: () => ({
-		meta: [{ title: "Preparación del entorno — Recon workspace" }],
+		meta: [{ title: "Preparación del entorno — recon-workspace" }],
 	}),
 	component: () => (
 		<PhasePage

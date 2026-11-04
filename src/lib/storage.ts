@@ -19,6 +19,7 @@ import {
 	validateCheckHistory,
 } from "./test-checklist.ts";
 
+// Keep the original keys so existing browser data remains available after renaming.
 export const STORAGE_KEY = "one-two-three:workspace:v1";
 export const SSH_KEY = "one-two-three:ssh:v1";
 export const ACTIVE_JOB_KEY = "one-two-three:active-job:v1";
@@ -323,7 +324,7 @@ export function writeWorkspace(
 export function exportWorkspace(data: WorkspaceData): string {
 	return JSON.stringify(
 		{
-			format: "one-two-three-workspace",
+			format: "recon-workspace",
 			version: 1,
 			exportedAt: new Date().toISOString(),
 			...validateWorkspace(data),
@@ -335,7 +336,11 @@ export function exportWorkspace(data: WorkspaceData): string {
 export function importWorkspace(text: string): WorkspaceData {
 	if (text.length > MAX_IMPORT) throw new Error("La importación supera 5 MB.");
 	const parsed = record(JSON.parse(text), "Importación");
-	if (parsed.format !== "one-two-three-workspace" || parsed.version !== 1)
+	if (
+		(parsed.format !== "recon-workspace" &&
+			parsed.format !== "one-two-three-workspace") ||
+		parsed.version !== 1
+	)
 		throw new Error("El archivo no es una exportación compatible.");
 	return validateWorkspace(parsed);
 }

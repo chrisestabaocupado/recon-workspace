@@ -13,7 +13,7 @@ export const Route = createRootRoute({
 				content: "width=device-width, initial-scale=1",
 			},
 			{
-				title: "Reconocimiento y mapeo — Recon workspace",
+				title: "Reconocimiento y mapeo — recon-workspace",
 			},
 		],
 		links: [

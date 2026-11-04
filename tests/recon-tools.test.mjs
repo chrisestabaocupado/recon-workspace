@@ -42,6 +42,6 @@ test('Diagnósticos incompletos, duplicados o contradictorios no se aceptan',asy
 
 test('El probe diferencia ejecutable ausente, fallo y versión válida sin usar shell',async()=>{
   assert.equal((await probeTool(process.execPath,['--version'])).status,'available');
-  assert.equal((await probeTool('one-two-three-missing-tool',['--version'])).status,'missing');
+  assert.equal((await probeTool('recon-workspace-missing-tool',['--version'])).status,'missing');
   assert.equal((await probeTool(process.execPath,['-e','process.exit(3)'])).status,'error');
 });

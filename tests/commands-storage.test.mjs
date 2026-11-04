@@ -42,6 +42,20 @@ test('Importación valida estructura, fechas, contadores, duplicados y tamaño',
   for (const projects of [[{}], [{ ...project(), targets: [{}] }], [{ ...project(), createdAt: 'ayer' }], [{ ...project(), executions: -1 }], [project(), project()]]) assert.throws(() => importWorkspace(JSON.stringify({ ...valid, projects })))
   assert.throws(() => importWorkspace('x'.repeat(5 * 1024 * 1024 + 1)))
 })
+test('recon-workspace exporta con el nuevo nombre y admite exportaciones anteriores', () => {
+  const exported = JSON.parse(exportWorkspace(workspace()))
+  assert.equal(exported.format, 'recon-workspace')
+  const current = importWorkspace(JSON.stringify(exported))
+  assert.deepEqual(importWorkspace(JSON.stringify({ ...exported, format: 'one-two-three-workspace' })), current)
+  assert.throws(() => importWorkspace(JSON.stringify({ ...exported, format: 'otro-workspace' })), /compatible/)
+  assert.throws(() => importWorkspace(JSON.stringify({ ...exported, version: 2 })), /compatible/)
+})
+test('El cambio de nombre conserva los datos guardados con las claves originales', () => {
+  memory.clear()
+  memory.set('one-two-three:workspace:v1', JSON.stringify(workspace()))
+  assert.equal(readWorkspaceResult().data.projects.length, 2)
+  assert.equal(STORAGE_KEY, 'one-two-three:workspace:v1')
+})
 test('Lectura de datos corruptos no modifica la copia existente; cuota produce error visible', () => {
   memory.set(STORAGE_KEY, '{corrupto')
   assert.ok(readWorkspaceResult().error)

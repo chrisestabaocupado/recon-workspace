@@ -52,7 +52,7 @@ function ProjectDashboard() {
 			);
 			const anchor = document.createElement("a");
 			anchor.href = url;
-			anchor.download = "one-two-three-workspace.json";
+			anchor.download = "recon-workspace.json";
 			anchor.click();
 			URL.revokeObjectURL(url);
 			setFileError("");
@@ -88,7 +88,7 @@ function ProjectDashboard() {
 							<Shield className="size-5" />
 						</div>
 						<div>
-							<div className="text-sm font-semibold">Recon workspace</div>
+							<div className="text-sm font-semibold">recon-workspace</div>
 							<div className="text-[11px] text-muted-foreground">
 								Dashboard de proyectos
 							</div>

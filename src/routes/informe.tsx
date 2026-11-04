@@ -3,7 +3,7 @@ import { PhasePage } from "#/components/PhasePage";
 import { ReportWorkspace } from "#/components/reports/ReportWorkspace";
 
 export const Route = createFileRoute("/informe")({
-	head: () => ({ meta: [{ title: "Informes — Recon workspace" }] }),
+	head: () => ({ meta: [{ title: "Informes — recon-workspace" }] }),
 	component: () => (
 		<PhasePage
 			title="Informes"

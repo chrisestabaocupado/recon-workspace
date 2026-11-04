@@ -322,7 +322,7 @@ export function ReconWorkspace() {
 						try {
 							download(
 								exportWorkspace(workspace),
-								"one-two-three-workspace.json",
+								"recon-workspace.json",
 								"application/json",
 							);
 						} catch (e) {
