@@ -11,8 +11,10 @@ import {
 	type ReconResult,
 	reconQueryIssues,
 	reconQueryUrl,
+	reconTarget,
 	scopeManualResult,
 } from "#/lib/recon";
+import { addressRange } from "#/lib/scope";
 import type { WorkspaceProject } from "#/lib/storage";
 import { KaliConnectionButton } from "../KaliConnection";
 import {
@@ -57,10 +59,14 @@ export function ReconCollector({
 	const [query, setQuery] = useState<ReconQuery>(() => ({
 		...defaultReconQuery(),
 		domain:
-			project.plan?.includes.find(
-				(value) =>
-					!value.includes("/") && /[a-z]/i.test(value) && !value.includes(":"),
-			) ?? "",
+			project.plan?.includes.find((value) => {
+				try {
+					reconTarget(value);
+					return true;
+				} catch {
+					return false;
+				}
+			}) ?? "",
 	}));
 	const [command, setCommand] = useState(() => {
 		try {
@@ -79,9 +85,18 @@ export function ReconCollector({
 	const [observedAt, setObservedAt] = useState(() => new Date().toISOString());
 	const [tab, setTab] = useState("public");
 	const externalSource = query.source === "crtsh" || query.source === "rdap";
+	const ipTarget =
+		!query.domain.includes("/") && !!addressRange(query.domain.trim());
 	const issues = reconQueryIssues(query, project.plan);
 	const updateQuery = (patch: Partial<ReconQuery>) => {
 		const next = { ...query, ...patch };
+		if (
+			addressRange(next.domain.trim()) &&
+			(next.source === "crtsh" || next.source === "rdap")
+		) {
+			next.source = "dns";
+			next.subdomains = false;
+		}
 		setQuery(next);
 		setCommandError("");
 		try {
@@ -165,7 +180,7 @@ export function ReconCollector({
 						<AlertDescription className="grid gap-3">
 							<p>
 								La consulta no produjo evidencia. Puedes continuar con DNS del
-								mismo nombre o registrar información manual.
+								mismo objetivo o registrar información manual.
 							</p>
 							<div className="flex flex-wrap gap-2">
 								<Button
@@ -224,12 +239,16 @@ export function ReconCollector({
 											<SelectValue />
 										</SelectTrigger>
 										<SelectContent>
-											<SelectItem value="crtsh">
+											<SelectItem value="crtsh" disabled={ipTarget}>
 												Certificados · crt.sh
 											</SelectItem>
-											<SelectItem value="rdap">Registro · RDAP</SelectItem>
+											<SelectItem value="rdap" disabled={ipTarget}>
+												Registro · RDAP
+											</SelectItem>
 											<SelectItem value="dns">
-												DNS · A, AAAA, CNAME, MX, NS, TXT, SOA
+												{ipTarget
+													? "DNS inverso · PTR"
+													: "DNS · registros / inverso (PTR)"}
 											</SelectItem>
 											<SelectItem value="tls">
 												TLS · certificado del servicio (activo)
@@ -238,10 +257,10 @@ export function ReconCollector({
 									</Select>
 								</div>
 								<PlanField
-									label="Dominio autorizado"
+									label="Dominio o IP autorizada"
 									value={query.domain}
 									onChange={(domain) => updateQuery({ domain })}
-									placeholder="empresa.com"
+									placeholder="empresa.com o 172.16.10.24"
 								/>
 								<PlanField
 									label="Timeout (s)"
@@ -254,6 +273,14 @@ export function ReconCollector({
 									}
 								/>
 							</div>
+							{ipTarget && (
+								<p className="m-0 text-xs text-muted-foreground">
+									IP detectada: puedes consultar DNS inverso (PTR) o el
+									certificado TLS del servicio desde Kali. crt.sh y RDAP solo
+									admiten dominios. No se explora la red ni se contactan los
+									nombres encontrados.
+								</p>
+							)}
 							{query.source === "tls" && (
 								<PlanField
 									label="Puerto TLS"
@@ -283,9 +310,13 @@ export function ReconCollector({
 							)}
 							<div className="rounded-lg border bg-background p-4 text-xs leading-relaxed text-muted-foreground">
 								{query.source === "dns"
-									? "Consulta los siete tipos de registro del nombre exacto desde los resolvedores configurados en Kali. Guarda respuestas y consultas no disponibles; no expande al dominio padre ni conecta a los candidatos."
+									? ipTarget
+										? "Consulta el registro PTR de la IP individual usando los resolvedores configurados en Kali. Puede devolver un nombre interno o no tener registro; no resuelve ni conecta a los nombres encontrados. Requiere el permiso de consultas DNS del plan."
+										: "Consulta los siete tipos de registro del nombre exacto desde los resolvedores configurados en Kali. Guarda respuestas y consultas no disponibles; no expande al dominio padre ni conecta a los candidatos."
 									: query.source === "tls"
-										? "Conecta desde Kali a una IP IPv4 fijada del host autorizado para leer su certificado TLS. Comprueba las exclusiones y el puerto del plan antes de conectar. No solicita páginas ni sigue nombres SAN."
+										? ipTarget
+											? "Conecta desde Kali a la IP y puerto autorizados sin SNI para leer el certificado TLS; el servidor puede presentar su certificado predeterminado. Comprueba exclusiones y permisos TCP/servicios. No solicita páginas ni sigue nombres SAN."
+											: "Conecta desde Kali a una IP IPv4 fijada del host autorizado para leer su certificado TLS. Comprueba las exclusiones y el puerto del plan antes de conectar. No solicita páginas ni sigue nombres SAN."
 										: "Las consultas HTTPS se ejecutan en Kali por SSH. Se consulta crt.sh o el registro publicado por IANA; la fuente externa recibe el dominio. Si no puede consultarse, puedes continuar con DNS o carga manual."}
 							</div>
 							<PlanField
@@ -355,8 +386,8 @@ export function ReconCollector({
 								<Alert>
 									<AlertDescription className="space-y-3">
 										<p>
-											Comprueba la conexión global a Kali para consultar fuentes
-											externas.
+											Comprueba la conexión global a Kali para ejecutar las
+											consultas.
 										</p>
 										<KaliConnectionButton />
 									</AlertDescription>

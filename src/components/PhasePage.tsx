@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { PhaseMobileNav, PhaseSidebar } from "#/components/PhaseSidebar";
 import { ExecutionRequirementsNotice } from "./ExecutionRequirementsNotice";
 import { KaliConnectionButton } from "./KaliConnection";
+import { KaliTerminalButton } from "./KaliTerminal";
 
 export function PhasePage({
 	title,
@@ -18,18 +19,19 @@ export function PhasePage({
 	return (
 		<div className="flex h-dvh flex-col overflow-hidden bg-background text-foreground">
 			<header className="relative z-30 flex h-16 shrink-0 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur md:px-7">
-				<div className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+				<div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
 					<Shield className="size-5" />
 				</div>
-				<div>
-					<div className="text-sm font-semibold tracking-tight">
+				<div className="min-w-0">
+					<div className="truncate text-sm font-semibold tracking-tight">
 						Recon workspace
 					</div>
-					<div className="text-[11px] text-muted-foreground">
+					<div className="hidden text-[11px] text-muted-foreground sm:block">
 						Reconocimiento, mapeo e informes
 					</div>
 				</div>
-				<div className="ml-auto">
+				<div className="ml-auto flex shrink-0 items-center gap-2">
+					<KaliTerminalButton />
 					<KaliConnectionButton />
 				</div>
 			</header>

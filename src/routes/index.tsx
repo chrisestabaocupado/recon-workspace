@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useRef, useState } from "react";
 import { KaliConnectionButton } from "#/components/KaliConnection";
+import { KaliTerminalButton } from "#/components/KaliTerminal";
 import { phases } from "#/components/PhaseSidebar";
 import { NewProjectButton } from "#/components/ProjectCreation";
 import { Alert, AlertDescription } from "#/components/ui/alert";
@@ -94,6 +95,7 @@ function ProjectDashboard() {
 						</div>
 					</Link>
 					<div className="flex flex-wrap items-center gap-2">
+						<KaliTerminalButton />
 						<KaliConnectionButton />
 						<Button
 							variant="outline"

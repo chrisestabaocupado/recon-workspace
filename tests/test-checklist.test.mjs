@@ -38,6 +38,20 @@ test('Un fallo posterior reemplaza el estado del checklist aunque se conserve ev
   assert.equal(row.attempts.length, 2);
 });
 
+test('El checklist de IP individuales solo propone DNS y TLS y reconoce los resultados PTR', () => {
+  const address = '172.16.10.24';
+  const p = { ...project(), plan: { ...plan(), includes: [address, '2001:db8::24', '172.16.20.0/24'] } };
+  const rows = projectChecklist(p, 'recon');
+  assert.equal(rows.length, 4);
+  assert.ok(rows.every((row) => ['dns', 'tls'].includes(row.kind)));
+  assert.ok(rows.every((row) => !row.target.includes('/')));
+  const ptr = evidence({ source: 'dns', query: address, sourceUrl: '', facts: [{ label: 'IP consultada', value: address }, { label: 'PTR', value: 'glpi.internal' }] });
+  assert.equal(evidenceCheck(ptr).status, 'data');
+  assert.equal(evidenceCheck({ ...ptr, facts: [{ label: 'PTR', value: 'Sin registros PTR (ENOTFOUND)' }] }).status, 'empty');
+  assert.equal(projectChecklist({ ...p, recon: recon(ptr) }, 'recon').find((row) => row.kind === 'dns' && row.target === address).status, 'data');
+  assert.equal(evidenceCheck(evidence({ source: 'tls', query: '2001:db8::24', sourceUrl: 'https://[2001:db8::24]:8443/' })).target, '[2001:db8::24]:8443');
+});
+
 test('DNS parcial y sin registros tienen estados distintos de error; TLS no validado queda parcial', () => {
   const dns = evidence({ source: 'dns', sourceUrl: '', facts: [{ label: 'A', value: '192.0.2.10' }, { label: 'SOA', value: 'Consulta no disponible (EBADRESP)' }] });
   assert.equal(evidenceCheck(dns).status, 'partial');

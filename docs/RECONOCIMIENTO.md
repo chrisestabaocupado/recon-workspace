@@ -1,4 +1,4 @@
-# Reconocimiento pasivo
+# Reconocimiento de dominios e IP
 
 La ruta `/reconocimiento` integra recopilación, revisión de activos y evidencia por proyecto. Usa shadcn/ui, tema oscuro y el mismo localStorage, sin base de datos.
 
@@ -6,22 +6,33 @@ La ruta `/reconocimiento` integra recopilación, revisión de activos y evidenci
 
 - **crt.sh:** certificados públicos, consulta de nombre exacto o subdominios, timeout y deduplicación SAN. Omite comodines; no inventa hosts concretos a partir de ellos. Los certificados pueden ser históricos y los resultados parciales.
 - **RDAP:** dominio registrado, fechas, estado, identificador del registrador y servidores DNS. El servidor elige un endpoint HTTPS del [directorio de IANA](https://www.iana.org/assignments/rdap-dns/rdap-dns.xhtml). No sigue redirecciones ni enlaces recibidos. Omite contactos personales y el JSON crudo.
+- **DNS:** para dominios públicos consulta A, AAAA, CNAME, MX, NS, TXT y SOA. Para una IP individual IPv4 o IPv6 consulta DNS inverso (PTR), incluidos nombres internos devueltos por el resolvedor. Una respuesta sin PTR se guarda como ausencia de registros, no como fallo de conectividad. Los errores del resolvedor sí bloquean la recopilación.
+- **TLS (activo):** lee el certificado del servicio desde Kali en el puerto autorizado. Admite dominio público o IP individual IPv4/IPv6. Por IP no envía SNI y comprueba la identidad del certificado contra esa IP; el servicio puede presentar su certificado predeterminado o rechazar conexiones sin SNI. No solicita páginas, autentica ni sigue nombres del certificado. Requiere permisos TCP e identificación de servicios y comprueba exclusiones IP y alias DNS antes de conectar.
 - **Manual:** IP, CIDR, nombres exactos, observaciones sin activos, URL, fecha y contexto. También permite pegar JSON de crt.sh/RDAP y marca que su procedencia y fecha fueron declaradas por el operador.
 
-Las consultas públicas requieren dominio público incluido explícitamente, plan aprobado, permiso **Reconocimiento pasivo en fuentes públicas**, ventana activa y timeout que quepa en ella. Se valida en cliente y servidor. Añadir el permiso invalida la aprobación anterior; los planes antiguos lo cargan deshabilitado.
+crt.sh y RDAP requieren dominio público incluido explícitamente; no aceptan IP. DNS y TLS admiten IP individuales incluidas directamente o mediante un CIDR del plan, pero no ejecutan consultas sobre redes completas. Todas las consultas requieren plan aprobado, ventana activa y timeout que quepa en ella. DNS y las fuentes públicas requieren **Reconocimiento pasivo (fuentes públicas y consultas DNS)**; TLS requiere los permisos activos descritos arriba. Se valida en cliente y servidor. Añadir permisos invalida la aprobación anterior; los planes antiguos cargan el permiso pasivo deshabilitado.
 
-Las peticiones HTTPS y la resolución de sus fuentes salen de Kali por SSH mediante la configuración global del navbar. Antes de consultar se exige una verificación vigente, vinculada a los campos y la huella del servidor; no se usa fetch local como alternativa. El timeout incluye conexión SSH y consultas a las fuentes. La fuente externa recibe el dominio consultado. No hay sondeos de los activos encontrados ni consultas DNS activas. Si el acuerdo prohíbe compartir el dominio, usar evidencia manual.
+Todas las consultas salen de Kali por SSH mediante la configuración global del navbar. Antes de consultar se exige una verificación vigente, vinculada a los campos y la huella del servidor; no se usa ejecución local como alternativa. El timeout incluye conexión SSH y consultas. Las fuentes públicas reciben el dominio consultado; DNS utiliza los resolvedores configurados en Kali (que reciben el dominio o la IP consultada). Para IP privadas Kali necesita conectividad al entorno y, para obtener PTR internos, un resolvedor que conozca esos registros. No se contactan automáticamente los activos encontrados. Si el acuerdo prohíbe compartir objetivos con el resolvedor o la fuente, usar evidencia manual.
+
+### Ejecutar pruebas directamente por IP
+
+1. Incluir, por ejemplo, `172.16.10.24` en el plan y aprobar los permisos correspondientes.
+2. Verificar la conexión a Kali en el programa y abrir **Reconocimiento**.
+3. Escribir la IP en **Dominio o IP autorizada**. Si había una fuente pública seleccionada, cambia automáticamente a DNS inverso; crt.sh y RDAP quedan deshabilitados para IP.
+4. Seleccionar **DNS inverso · PTR** o **TLS · certificado del servicio (activo)**, indicar el puerto TLS cuando corresponda y pulsar **Consultar y guardar evidencia**. La app ejecuta la consulta por SSH y guarda evidencia, candidatos y checklist.
+
+Si el plan solo incluye una red CIDR, indicar una IP individual de esa red en el formulario. Los nombres PTR y SAN encontrados siguen siendo candidatos: no amplían el alcance ni se consultan automáticamente. La enumeración de puertos y servicios continúa en **Enumeración y mapeo**.
 
 ## Campos y comando
 
 Fuente, dominio, subdominios y timeout se sincronizan con el comando curl equivalente. El parser acepta curl/curl.exe, --fail, --silent, --show-error, --location para RDAP, --max-time y sus alias cubiertos por las pruebas. Si no hay timeout se aplica el del adaptador: 25 segundos. Opciones desconocidas, shell y URLs ajenas bloquean el botón; no se ejecuta el texto en shell.
 
-El comando equivalente se copia a la terminal de Kali. El parser conserva compatibilidad con curl.exe para comandos antiguos; la app siempre consulta desde Kali. El equivalente RDAP usa [rdap.org](https://about.rdap.org/); la app consulta el endpoint de IANA. Son recorridos diferentes: el CLI puede seguir redirecciones que la app bloquea. No hay cobertura general de todos los parámetros curl.
+No es necesario ejecutar comandos fuera del programa. DNS y TLS muestran una referencia CLI de solo lectura (`dig -x` para IP y OpenSSL sin SNI para TLS por IP); se configuran con los campos y se ejecutan con el botón. El parser conserva compatibilidad con curl.exe para comandos antiguos de fuentes públicas; la app siempre consulta desde Kali. El equivalente RDAP usa [rdap.org](https://about.rdap.org/); la app consulta el endpoint de IANA. Son recorridos diferentes: el CLI puede seguir redirecciones que la app bloquea. No hay cobertura general de todos los parámetros curl.
 
 ## Flujo y trazabilidad
 
 1. Seleccionar proyecto, revisar el plan y habilitar/aprobar el permiso pasivo si se harán consultas públicas.
-2. Comprobar Kali por SSH desde el navbar antes de consultar una fuente. Guardar evidencia manual no exige una conexión. En redes internas, usar documentación e inventarios del propietario.
+2. Comprobar Kali por SSH desde el navbar antes de consultar una fuente. Guardar evidencia manual no exige una conexión. En redes internas se puede consultar PTR y TLS por IP, además de registrar documentación e inventarios del propietario.
 3. Revisar candidatos, documentar propiedad, confianza y terceros, y marcar Revisado o Descartado.
 4. Enviar a Enumeración solo activos revisados, incluidos y no excluidos, con plan aprobado y vigente. Se evitan duplicados, se enlazan las fuentes en la nota del objetivo y no se inicia un escaneo.
 5. Incorporar subdominios fuera del plan mediante un nuevo acuerdo/aprobación en Alcance. Descubrirlos no amplía los permisos.
@@ -39,7 +50,7 @@ La navegación interna espera a que termine la consulta para guardar la respuest
 
 Pruebas: parsers, roundtrip curl, permisos, compatibilidad, deduplicación, límites, redacción, importación/exportación, promoción y respuestas HTTP simuladas. No contactan los dominios sintéticos. En el navegador (origen de prueba 127.0.0.1:3100) se comprobaron carga manual, revisión, persistencia, exclusiones y descarga Markdown. La disponibilidad real de crt.sh y cada registro RDAP debe probarse con un dominio autorizado.
 
-Pendientes: adaptadores activos DNS/HTTP en Kali por SSH, tecnologías observadas, theHarvester/Subfinder y fuentes con API. Las comprobaciones no sustituyen la autorización escrita ni verifican propiedad o permisos de terceros.
+Pendientes: adaptadores HTTP, tecnologías observadas, theHarvester/Subfinder y fuentes con API. Las comprobaciones no sustituyen la autorización escrita ni verifican propiedad o permisos de terceros.
 
 Referencia crt.sh: [parámetro output=json en el grupo del proyecto](https://groups.google.com/g/crtsh/c/sCpRljHP4dw).
 
@@ -60,7 +71,7 @@ Validación: 70 pruebas automatizadas, TypeScript, lint y build; pruebas de inte
 
 Reconocimiento y Enumeración muestran **Checklist de pruebas** antes del registro de incidencias. Cada fila identifica prueba y objetivo; Nmap separa comandos distintos. El último intento determina el estado: Con datos, Sin datos, Falló, Parcial, Sin confirmar, Cancelada, Ejecutada, En curso o Pendiente. Un fallo posterior puede cambiar el estado aunque permanezca evidencia de una consulta anterior. Una consulta exitosa posterior muestra **Reintento resuelto**, conservando los errores previos en **Ver intentos**.
 
-Con datos/Sin datos son resultados de recopilación; no equivalen a vulnerabilidad confirmada o ausencia de vulnerabilidades. Un DNS que responde A pero falla SOA queda Parcial. Un diagnóstico Nmap completado sin inventario queda Ejecutada; la cancelación voluntaria no queda como fallo. La evidencia manual y los JSON importados aparecen como Datos aportados, sin presentarlos como consultas ejecutadas por la app. La marca indica intento registrado, no éxito ni permiso para ejecutar. Las filas pendientes de reconocimiento se generan para los dominios exactos del plan: DNS, TLS, crt.sh y RDAP, sin ampliar a otros dominios ni consultar automáticamente.
+Con datos/Sin datos son resultados de recopilación; no equivalen a vulnerabilidad confirmada o ausencia de vulnerabilidades. Un DNS que responde A pero falla SOA queda Parcial. Un PTR sin registros queda Sin datos. Un diagnóstico Nmap completado sin inventario queda Ejecutada; la cancelación voluntaria no queda como fallo. La evidencia manual y los JSON importados aparecen como Datos aportados, sin presentarlos como consultas ejecutadas por la app. La marca indica intento registrado, no éxito ni permiso para ejecutar. Las filas pendientes se generan para los dominios públicos exactos del plan (DNS, TLS, crt.sh y RDAP) y las IP individuales (DNS y TLS); no se expanden CIDR ni se consulta automáticamente.
 
 Por defecto se muestra la revisión actual del plan. **Incluir revisiones anteriores** permite inspeccionar resultados anteriores y registros sin revisión; no se usan para dar por probada una revisión nueva. Los filtros separan completadas, fallos/parciales y pendientes. **Copiar checklist** y **Descargar checklist** incluyen estados e intentos de la revisión seleccionada; el filtro de estado afecta solo a la vista. El informe Markdown y Copiar todo/evidencias de Reconocimiento incluyen el checklist con todas las revisiones. Exportar JSON conserva el historial.
 

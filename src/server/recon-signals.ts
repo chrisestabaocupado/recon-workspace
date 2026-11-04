@@ -1,5 +1,6 @@
 import {
 	parseDnsResult,
+	parsePtrResult,
 	parseTlsResult,
 	type ReconQuery,
 	type ReconResult,
@@ -35,11 +36,13 @@ export async function collectReconSignals(
 		return milliseconds;
 	};
 	let parsed: Pick<ReconResult, "facts" | "assets" | "warnings">;
+	const ip = addressRange(query.domain);
 	if (query.source === "dns") {
-		parsed = parseDnsResult(
+		parsed = (ip ? parsePtrResult : parseDnsResult)(
 			await probe({
-				operation: "dns",
-				domain: query.domain,
+				...(ip
+					? { operation: "reverse", address: query.domain }
+					: { operation: "dns", domain: query.domain }),
 				timeoutMs: remaining(),
 			}),
 			query.domain,
@@ -47,7 +50,7 @@ export async function collectReconSignals(
 	} else if (query.source === "tls") {
 		const names = [
 			...new Set([
-				query.domain,
+				...(ip ? [] : [query.domain]),
 				...plan.excludes.filter((name) => !addressRange(name)),
 			]),
 		];
@@ -55,16 +58,20 @@ export async function collectReconSignals(
 			throw new Error(
 				"La comprobación TLS admite hasta 64 nombres entre el objetivo y las exclusiones.",
 			);
-		const resolved = await probe({
-			operation: "resolve",
-			names,
-			timeoutMs: remaining(),
-		});
+		const resolved = names.length
+			? await probe({
+					operation: "resolve",
+					names,
+					...(ip?.kind === "ipv6" ? { family: 6 } : {}),
+					timeoutMs: remaining(),
+				})
+			: {};
 		if (!resolved || typeof resolved !== "object" || Array.isArray(resolved))
 			throw new Error("Respuesta DNS inválida.");
 		remaining();
 		const args = pinResolvedScope(
 			[
+				...(ip?.kind === "ipv6" ? ["-6"] : []),
 				"-sT",
 				"-Pn",
 				"-sV",
@@ -79,7 +86,9 @@ export async function collectReconSignals(
 			query.timeoutSeconds,
 			now(),
 		);
-		const address = (resolved as Record<string, string[]>)[query.domain][0];
+		const address = ip
+			? query.domain
+			: (resolved as Record<string, string[]>)[query.domain][0];
 		if (!args.includes(address))
 			throw new Error("No se pudo fijar el destino TLS autorizado.");
 		parsed = parseTlsResult(

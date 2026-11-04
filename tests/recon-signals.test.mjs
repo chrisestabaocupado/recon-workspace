@@ -3,7 +3,7 @@ import test from 'node:test';
 import { spawn } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { approveScopePlan, newScopePlan } from '../src/lib/scope.ts';
-import { buildReconCommand, mergeReconResult, parseDnsResult, reconQueryIssues, validateReconQuery, validateReconData } from '../src/lib/recon.ts';
+import { buildReconCommand, mergeReconResult, parseDnsResult, parsePtrResult, reconQueryIssues, reconQueryUrl, validateReconQuery, validateReconData } from '../src/lib/recon.ts';
 import { collectReconSignals } from '../src/server/recon-signals.ts';
 
 const now = Date.parse('2026-10-02T12:00:00Z');
@@ -100,4 +100,170 @@ test('Runner DNS produce las siete respuestas estructuradas con un resolvedor si
   assert.equal(exit, 0, errors);
   assert.ok(parseDnsResult(JSON.parse(output), domain).assets.includes('192.0.2.10'));
   assert.ok(buildReconCommand(query).includes('SOA'));
+});
+
+const ipPlan = (address = '172.16.10.24') => ({ ...plan(), includes: [address] });
+const ptrPayload = (address = '172.16.10.24') => ({ address, names: ['GLPI.INTERNAL.', 'glpi.internal'], resolvers: ['172.16.10.1'] });
+
+test('Consultas DNS/TLS admiten IP individuales; fuentes públicas y CIDR siguen restringidos', () => {
+  for (const address of ['172.16.10.24', '2001:db8::24']) {
+    for (const source of ['dns', 'tls']) {
+      assert.equal(validateReconQuery({ ...query, source, domain: address }).domain, address);
+      assert.deepEqual(reconQueryIssues({ ...query, source, domain: address }, ipPlan(address), now), []);
+      for (const domain of ['172.16.10.0/24', '172.16.10.24/32', '2001:db8::/64', '2001:db8::24/128'])
+        assert.throws(() => validateReconQuery({ ...query, source, domain }), /IP individual/);
+    }
+    for (const source of ['crtsh', 'rdap']) assert.throws(() => validateReconQuery({ ...query, source, domain: address }), /dominio público/);
+  }
+  for (const domain of ['172.16.010.24', 'https://172.16.10.24', '2001:db8::zz', '::ffff:172.16.10.24'])
+    assert.throws(() => validateReconQuery({ ...query, domain }));
+  assert.match(buildReconCommand({ ...query, domain: '172.16.10.24' }), /-x 172\.16\.10\.24/);
+  const tlsQuery = { ...query, source: 'tls', domain: '2001:db8::24', port: 8443 };
+  assert.equal(reconQueryUrl(tlsQuery), 'https://[2001:db8::24]:8443/');
+  assert.match(buildReconCommand(tlsQuery), /\[2001:db8::24\]:8443.*-noservername/);
+});
+
+test('DNS inverso conserva PTR internos y trazabilidad sin resolver ni contactar candidatos', async () => {
+  for (const address of ['172.16.10.24', '2001:db8::24']) {
+    const calls = [];
+    const result = await collectReconSignals({ ...query, domain: address }, ipPlan(address), async (payload) => {
+      calls.push(payload); return ptrPayload(address);
+    }, () => now);
+    assert.deepEqual(calls, [{ operation: 'reverse', address, timeoutMs: 25000 }]);
+    assert.deepEqual(result.assets, [address, 'glpi.internal']);
+    assert.equal(result.query, address);
+    assert.equal(result.facts.find((f) => f.label === 'PTR').value, 'glpi.internal');
+    assert.equal(result.scopeRevision, 1);
+    assert.equal(validateReconData(JSON.parse(JSON.stringify(mergeReconResult(undefined, result)))).evidence[0].query, address);
+  }
+});
+
+test('PTR diferencia ausencia y fallos, rechaza respuestas contradictorias y de otro destino', () => {
+  const address = '172.16.10.24';
+  for (const error of ['ENOTFOUND', 'ENODATA', undefined]) {
+    const result = parsePtrResult({ ...ptrPayload(), names: [], error }, address);
+    assert.deepEqual(result.assets, []);
+    assert.match(result.facts.find((f) => f.label === 'PTR').value, /Sin registros PTR/);
+  }
+  assert.throws(() => parsePtrResult({ ...ptrPayload(), names: [], error: 'ETIMEOUT' }, address), /ETIMEOUT/);
+  assert.throws(() => parsePtrResult({ ...ptrPayload(), error: 'ENOTFOUND' }, address), /contradictoria/);
+  assert.throws(() => parsePtrResult(ptrPayload('172.16.10.25'), address), /IP distinta/);
+  for (const names of [['172.16.10.1'], ['*.internal'], ['https://glpi.internal'], Array(101).fill('glpi.internal')])
+    assert.throws(() => parsePtrResult({ ...ptrPayload(), names }, address));
+  const names = Array.from({ length: 100 }, (_, index) => `${'a'.repeat(60)}.${'b'.repeat(60)}.${index}.internal`);
+  const parsed = parsePtrResult({ ...ptrPayload(), names }, address);
+  const saved = mergeReconResult(undefined, { ...parsed, source: 'dns', query: address, sourceUrl: '', retrievedAt: new Date(now).toISOString() });
+  assert.equal(validateReconData(JSON.parse(JSON.stringify(saved))).assets.length, 101);
+});
+
+test('TLS por IP no resuelve el objetivo y conserva evidencia, puerto y advertencia sin SNI', async () => {
+  for (const address of ['172.16.10.24', '2001:db8::24']) {
+    const calls = [];
+    const result = await collectReconSignals({ ...query, source: 'tls', domain: address, port: 8443 }, ipPlan(address), async (payload) => {
+      calls.push(payload); return { ...cert, address };
+    }, () => now);
+    assert.deepEqual(calls, [{ operation: 'tls', domain: address, address, port: 8443, timeoutMs: 25000 }]);
+    assert.ok(result.warnings.some((w) => w.includes('sin SNI')));
+    assert.ok(result.assets.includes(address));
+    assert.equal(validateReconData(JSON.parse(JSON.stringify(mergeReconResult(undefined, result)))).evidence[0].query, address);
+  }
+});
+
+test('IP respeta alcance, permisos, puertos y ventana antes de invocar Kali', async () => {
+  const address = '172.16.10.24';
+  for (const source of ['dns', 'tls']) {
+    const input = { ...query, source, domain: address, port: 443 };
+    const base = ipPlan();
+    const denied = [
+      { ...base, includes: ['172.16.11.0/24'] },
+      { ...base, excludes: [address] },
+      { ...base, excludes: ['172.16.10.0/24'] },
+      { ...base, status: 'paused' },
+      { ...base, windowEnd: new Date(now + 10000).toISOString() },
+      ...(source === 'dns' ? [{ ...base, passiveRecon: false }] : [
+        { ...base, techniques: { ...base.techniques, tcp: false } },
+        { ...base, techniques: { ...base.techniques, services: false } },
+        { ...base, allowedPorts: '80' },
+      ]),
+    ];
+    for (const scope of denied) {
+      let calls = 0;
+      await assert.rejects(collectReconSignals(input, scope, async () => { calls++; }, () => now));
+      assert.equal(calls, 0);
+    }
+  }
+});
+
+test('TLS por IP comprueba alias excluidos, también en IPv6, y falla de forma cerrada', async () => {
+  for (const address of ['172.16.10.24', '2001:db8::24']) {
+    const calls = [];
+    await assert.rejects(collectReconSignals({ ...query, source: 'tls', domain: address }, { ...ipPlan(address), excludes: ['blocked.internal'] }, async (payload) => {
+      calls.push(payload); return { 'blocked.internal': [address] };
+    }, () => now), /exclusión/);
+    assert.equal(calls.length, 1);
+    assert.deepEqual(calls[0].names, ['blocked.internal']);
+    assert.equal(calls[0].family, address.includes(':') ? 6 : undefined);
+    await assert.rejects(collectReconSignals({ ...query, source: 'tls', domain: address }, { ...ipPlan(address), excludes: ['blocked.internal'] }, async () => ({}), () => now), /resolver/);
+  }
+});
+
+test('Reconocimiento por IP rechaza resultados que llegan después del timeout', async () => {
+  for (const source of ['dns', 'tls']) {
+    let clock = now;
+    await assert.rejects(collectReconSignals({ ...query, source, domain: '172.16.10.24' }, ipPlan(), async () => {
+      clock += 26000; return source === 'dns' ? ptrPayload() : { ...cert, address: '172.16.10.24' };
+    }, () => clock), /timeout/);
+  }
+});
+
+async function runSignalRunner(source, payload) {
+  const child = spawn(process.execPath, ['--input-type=module', '-e', source], { stdio: ['pipe', 'pipe', 'pipe'] });
+  let output = ''; let errors = '';
+  child.stdout.on('data', (chunk) => { output += chunk; }); child.stderr.on('data', (chunk) => { errors += chunk; });
+  child.stdin.end(JSON.stringify({ timeoutMs: 1000, ...payload }));
+  const exit = await new Promise((resolve, reject) => { child.on('close', resolve); child.on('error', reject); });
+  return { exit, output, errors };
+}
+
+test('Runner PTR usa reverse para IPv4/IPv6 y conserva errores del resolvedor', async () => {
+  const source = (await readFile(new URL('../src/server/remote-signals.mjs', import.meta.url), 'utf8')).replace('import { Resolver } from "node:dns/promises";', `const Resolver = class { getServers() { return ['192.0.2.53']; } cancel() {} async reverse(address) { if (address === '172.16.10.24') return ['glpi.internal']; const e = new Error(); e.code = 'ENOTFOUND'; throw e; } };`);
+  for (const address of ['172.16.10.24', '2001:db8::24']) {
+    const result = await runSignalRunner(source, { operation: 'reverse', address });
+    assert.equal(result.exit, 0, result.errors);
+    assert.equal(parsePtrResult(JSON.parse(result.output), address).assets.length, address.includes(':') ? 0 : 2);
+  }
+  assert.equal((await runSignalRunner(source, { operation: 'reverse', address: '172.16.10.0/24' })).exit, 1);
+});
+
+test('Runner resuelve exclusiones DNS en la familia del destino TLS', async () => {
+  const source = (await readFile(new URL('../src/server/remote-signals.mjs', import.meta.url), 'utf8')).replace('import { Resolver } from "node:dns/promises";', `const Resolver = class { cancel() {} async resolve4() { return ['192.0.2.10']; } async resolve6() { return ['2001:db8::10']; } };`);
+  for (const family of [undefined, 6]) {
+    const result = await runSignalRunner(source, { operation: 'resolve', names: ['blocked.internal'], family });
+    assert.equal(result.exit, 0, result.errors);
+    assert.deepEqual(JSON.parse(result.output), { 'blocked.internal': [family === 6 ? '2001:db8::10' : '192.0.2.10'] });
+  }
+});
+
+test('Runner TLS omite SNI para IP, mantiene SNI para dominios y verifica identidad contra el objetivo', async () => {
+  const source = (await readFile(new URL('../src/server/remote-signals.mjs', import.meta.url), 'utf8')).replace('import tls from "node:tls";', `
+    import { EventEmitter } from 'node:events';
+    const tls = {
+      connect(options) {
+        const socket = new EventEmitter(); socket.authorized = false; socket.authorizationError = 'SELF_SIGNED_CERT';
+        socket.getPeerCertificate = () => ({ fingerprint256: 'AA:BB', subject: { CN: options.servername ?? 'sin SNI' } });
+        socket.getProtocol = () => 'TLSv1.3'; socket.destroy = () => socket.emit('close');
+        queueMicrotask(() => socket.emit('secureConnect')); return socket;
+      },
+      checkServerIdentity(name) { return new Error('identity:' + name); }
+    };
+  `);
+  for (const target of ['172.16.10.24', '2001:db8::24', domain]) {
+    const address = target === domain ? '192.0.2.10' : target;
+    const result = await runSignalRunner(source, { operation: 'tls', domain: target, address, port: 443 });
+    assert.equal(result.exit, 0, result.errors);
+    const payload = JSON.parse(result.output);
+    assert.equal(payload.subject, target === domain ? domain : 'sin SNI');
+    assert.equal(payload.hostnameError, 'identity:' + target);
+  }
+  assert.equal((await runSignalRunner(source, { operation: 'tls', domain: '172.16.10.24', address: '172.16.10.25', port: 443 })).exit, 1);
 });

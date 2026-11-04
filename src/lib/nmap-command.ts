@@ -375,7 +375,7 @@ export function getNmapSuggestions(
 		);
 }
 export function emptyConfigWithProfile(
-	profile: "discovery" | "quick" | "service",
+	profile: "discovery" | "quick" | "service" | "web",
 ): NmapConfig {
 	const config = emptyNmapConfig();
 	if (profile === "discovery") config.values["ping-scan"] = true;
@@ -387,5 +387,57 @@ export function emptyConfigWithProfile(
 		config.values["service-version"] = true;
 		config.values["open-only"] = true;
 	}
+	if (profile === "web") {
+		config.values["connect-scan"] = true;
+		config.values["service-version"] = true;
+		config.values.ports = "80,443";
+	}
 	return config;
+}
+
+export function getNmapScanSummary(command: string): {
+	label: string;
+	warning?: string;
+} | null {
+	if (command === "nmap [reporte importado]") return null;
+	try {
+		const config = parseNmapCommand(command);
+		// Advanced options may change the scan type; do not infer their coverage.
+		if (config.unknown.length) return null;
+		const { values } = config;
+		if (values["ping-scan"] || values["list-scan"])
+			return {
+				label: "Sin enumeración de puertos",
+				warning:
+					"Este comando no enumera puertos. Un host activo puede tener servicios TCP o UDP que este resultado no muestra.",
+			};
+		if (values["ip-protocol-scan"])
+			return { label: "Protocolos IP, no puertos TCP/UDP" };
+		const udp = Boolean(values["udp-scan"]);
+		const sctp = Boolean(values["sctp-init"] || values["sctp-cookie"]);
+		const tcp =
+			[
+				"syn-scan",
+				"connect-scan",
+				"ack-scan",
+				"window-scan",
+				"maimon-scan",
+				"null-scan",
+				"fin-scan",
+				"xmas-scan",
+				"idle-scan",
+				"ftp-bounce",
+			].some((id) => values[id]) ||
+			(!udp && !sctp);
+		return {
+			label: `Protocolos solicitados: ${[tcp && "TCP", udp && "UDP", sctp && "SCTP"].filter(Boolean).join(" + ")}`,
+			warning:
+				udp && !tcp
+					? "Este escaneo UDP (-sU) no comprueba puertos TCP. Los servicios HTTP/HTTPS suelen usar 80/tcp o 443/tcp; no encontrar puertos UDP abiertos no descarta esos servicios. Usa el perfil HTTP/HTTPS (TCP) para comprobarlos."
+					: undefined,
+		};
+	} catch {
+		// Imported reports and incomplete commands do not prove scan coverage.
+		return null;
+	}
 }

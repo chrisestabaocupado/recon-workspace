@@ -125,14 +125,15 @@ export function ReconWorkspace() {
 		setMessage("");
 		setFailedQuery(undefined);
 		let stage = "Comprobar conexión y autorización";
+		const target =
+			input.source === "tls" && input.port && input.port !== 443
+				? `${input.domain.includes(":") ? `[${input.domain}]` : input.domain}:${input.port}`
+				: input.domain;
 		const attemptId = beginOperation(projectId, {
 			phase: "recon",
 			stage: "Consultar fuente",
 			source: input.source,
-			target:
-				input.source === "tls" && input.port && input.port !== 443
-					? `${input.domain}:${input.port}`
-					: input.domain,
+			target,
 			scopeRevision: plan.revision,
 			error: "Respuesta pendiente de confirmar.",
 		});
@@ -149,7 +150,7 @@ export function ReconWorkspace() {
 					phase: "recon",
 					...issue,
 					source: input.source,
-					target: input.domain,
+					target,
 					scopeRevision: plan.revision,
 				});
 		} catch (e) {
@@ -158,10 +159,7 @@ export function ReconWorkspace() {
 				phase: "recon",
 				stage,
 				source: input.source,
-				target:
-					input.source === "tls"
-						? `${input.domain}:${input.port ?? 443}`
-						: input.domain,
+				target,
 				scopeRevision: plan.revision,
 				error:
 					e instanceof Error ? e.message : "No se pudo recopilar la fuente.",

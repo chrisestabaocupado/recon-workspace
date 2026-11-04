@@ -36,6 +36,8 @@ import {
 	KaliConnectionButton,
 	KaliExecutionCard,
 } from "#/components/KaliConnection";
+import { KaliTerminalButton } from "#/components/KaliTerminal";
+import { NmapGuidedOptions } from "#/components/NmapGuidedOptions";
 import { OperationHistory } from "#/components/OperationHistory";
 import { PhaseMobileNav, PhaseSidebar } from "#/components/PhaseSidebar";
 import { TestChecklist } from "#/components/TestChecklist";
@@ -76,6 +78,7 @@ import {
 	buildNmapCommand,
 	emptyConfigWithProfile,
 	emptyNmapConfig,
+	getNmapScanSummary,
 	hasNmapTargets,
 	type NmapConfig,
 	type NmapGroup,
@@ -134,6 +137,9 @@ function Workspace() {
 	const [activeGroup, setActiveGroup] = useState<NmapGroup>("Puertos");
 	const [fieldSearch, setFieldSearch] = useState("");
 	const [profile, setProfile] = useState("custom");
+	const [parameterMode, setParameterMode] = useState<"guided" | "advanced">(
+		"guided",
+	);
 	const [authorized, setAuthorized] = useState(false);
 	const jobId = execution?.id ?? "";
 	const jobState = execution?.state ?? "";
@@ -160,6 +166,7 @@ function Workspace() {
 		setConfig(next);
 		setCommand(buildNmapCommand(next));
 		setCommandError("");
+		setProfile("custom");
 	}, [workspace.selectedProjectId, hydrated]);
 	useEffect(() => {
 		if (jobLog && logRef.current)
@@ -188,6 +195,10 @@ function Workspace() {
 			(execution && !activeJob && !execution.truncated
 				? parseNmapResults(jobLog)
 				: []),
+	);
+	const commandScanSummary = commandError ? null : getNmapScanSummary(command);
+	const resultScanSummary = getNmapScanSummary(
+		currentRun?.command ?? execution?.command ?? "",
 	);
 	let scopeIssues: string[] = [];
 	try {
@@ -256,10 +267,32 @@ function Workspace() {
 	function selectProfile(value: string) {
 		setProfile(value);
 		if (value === "custom") return;
-		updateConfig({
-			...emptyConfigWithProfile(value as "discovery" | "quick" | "service"),
+		const next = {
+			...emptyConfigWithProfile(
+				value as "discovery" | "quick" | "service" | "web",
+			),
 			targets: config.targets,
-		});
+		};
+		if (config.values.ipv6) next.values.ipv6 = true;
+		if (project?.plan) {
+			setTimeoutSeconds(
+				Math.min(timeoutSeconds, project.plan.maxDurationSeconds),
+			);
+			const rate = Number(config.values["max-rate"]);
+			next.values["max-rate"] = String(
+				rate > 0 && Number.isFinite(rate)
+					? Math.min(rate, project.plan.maxRate)
+					: project.plan.maxRate,
+			);
+			if (project.plan.allowedPorts !== "1-65535" && value !== "discovery") {
+				next.values["skip-discovery"] = true;
+				if (value !== "web") {
+					next.values.ports = project.plan.allowedPorts;
+					delete next.values.fast;
+				}
+			}
+		}
+		updateConfig(next);
 		setProfile(value);
 	}
 	function addTarget() {
@@ -525,6 +558,7 @@ function Workspace() {
 					</Badge>
 				</div>
 				<div className="flex flex-wrap items-center gap-2">
+					<KaliTerminalButton />
 					<KaliConnectionButton />
 					<Button
 						className="hidden lg:inline-flex"
@@ -761,328 +795,383 @@ function Workspace() {
 											Parámetros Nmap
 										</CardTitle>
 										<CardDescription>
-											Los campos y el comando describen la misma configuración.
+											Elige qué comprobar; la aplicación prepara los parámetros.
 										</CardDescription>
 									</div>
-									<Select value={profile} onValueChange={selectProfile}>
-										<SelectTrigger className="w-[220px]">
-											<SelectValue placeholder="Perfil de escaneo" />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="custom">Personalizado</SelectItem>
-											<SelectItem value="discovery">
-												Descubrimiento de hosts
-											</SelectItem>
-											<SelectItem value="quick">
-												Puertos abiertos rápidos
-											</SelectItem>
-											<SelectItem value="service">
-												Identificación de servicios
-											</SelectItem>
-										</SelectContent>
-									</Select>
+									<div className="flex flex-wrap items-center gap-2">
+										<fieldset
+											className="flex gap-1 rounded-lg border p-1"
+											aria-label="Modo de configuración de Nmap"
+										>
+											<Button
+												size="sm"
+												variant={
+													parameterMode === "guided" ? "secondary" : "ghost"
+												}
+												aria-pressed={parameterMode === "guided"}
+												onClick={() => setParameterMode("guided")}
+											>
+												Guiado
+											</Button>
+											<Button
+												size="sm"
+												variant={
+													parameterMode === "advanced" ? "secondary" : "ghost"
+												}
+												aria-pressed={parameterMode === "advanced"}
+												onClick={() => setParameterMode("advanced")}
+											>
+												Avanzado
+											</Button>
+										</fieldset>
+										{parameterMode === "advanced" && (
+											<Select value={profile} onValueChange={selectProfile}>
+												<SelectTrigger className="w-[220px]">
+													<SelectValue placeholder="Perfil de escaneo" />
+												</SelectTrigger>
+												<SelectContent>
+													<SelectItem value="custom">Personalizado</SelectItem>
+													<SelectItem value="discovery">
+														Descubrimiento de hosts
+													</SelectItem>
+													<SelectItem value="quick">
+														Puertos TCP rápidos
+													</SelectItem>
+													<SelectItem value="service">Servicios TCP</SelectItem>
+													<SelectItem value="web">HTTP/HTTPS (TCP)</SelectItem>
+												</SelectContent>
+											</Select>
+										)}
+									</div>
 								</div>
 							</CardHeader>
 							<CardContent className="p-0">
-								<div className="grid lg:grid-cols-[minmax(0,1.05fr)_minmax(360px,.95fr)]">
-									<div className="min-w-0 border-b p-6 lg:border-b-0 lg:border-r">
-										<div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-											<div className="flex min-w-0 items-center gap-2">
-												<div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-													<Settings2 className="size-4" />
+								{parameterMode === "guided" ? (
+									<NmapGuidedOptions
+										config={config}
+										command={command}
+										profile={profile}
+										onProfile={selectProfile}
+										onChange={updateConfig}
+										onTargets={updateTargets}
+										onAdvanced={() => setParameterMode("advanced")}
+									/>
+								) : (
+									<div className="grid lg:grid-cols-[minmax(0,1.05fr)_minmax(360px,.95fr)]">
+										<div className="min-w-0 border-b p-6 lg:border-b-0 lg:border-r">
+											<div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+												<div className="flex min-w-0 items-center gap-2">
+													<div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+														<Settings2 className="size-4" />
+													</div>
+													<div>
+														<div className="text-sm font-medium">
+															Opciones de escaneo
+														</div>
+														<div className="text-[11px] text-muted-foreground">
+															{nmapOptions.length} opciones con campos ·
+															argumentos avanzados disponibles
+														</div>
+													</div>
 												</div>
-												<div>
-													<div className="text-sm font-medium">
-														Opciones de escaneo
-													</div>
-													<div className="text-[11px] text-muted-foreground">
-														{nmapOptions.length} opciones con campos ·
-														argumentos avanzados disponibles
-													</div>
+												<div className="relative w-full sm:w-48">
+													<Search className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
+													<Input
+														className="h-9 pl-8 text-xs"
+														placeholder="Buscar parámetro…"
+														value={fieldSearch}
+														onChange={(event) =>
+															setFieldSearch(event.target.value)
+														}
+													/>
 												</div>
 											</div>
-											<div className="relative w-full sm:w-48">
-												<Search className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
-												<Input
-													className="h-9 pl-8 text-xs"
-													placeholder="Buscar parámetro…"
-													value={fieldSearch}
-													onChange={(event) =>
-														setFieldSearch(event.target.value)
-													}
-												/>
-											</div>
-										</div>
-										<Tabs
-											value={activeGroup}
-											onValueChange={(value) =>
-												setActiveGroup(value as NmapGroup)
-											}
-										>
-											<ScrollArea className="w-full whitespace-nowrap pb-2">
-												<TabsList className="h-auto w-max justify-start gap-1 bg-transparent p-0">
-													{nmapGroups.map((group) => (
-														<TabsTrigger
-															className="h-8 rounded-md border border-transparent px-2.5 text-xs data-[state=active]:border-border data-[state=active]:bg-background"
-															key={group}
-															value={group}
-														>
-															{group}
-														</TabsTrigger>
-													))}
-												</TabsList>
-											</ScrollArea>
-											{nmapGroups.map((group) => (
-												<TabsContent key={group} value={group} className="mt-2">
-													<ScrollArea className="h-[320px] pr-3">
-														<div className="grid gap-2">
-															{group === "Puertos" && (
-																<FieldLabel label="Puertos o rangos">
-																	<Input
-																		className="font-mono"
-																		placeholder="22,80,443,8000-8100"
-																		value={String(config.values.ports ?? "")}
-																		onChange={(event) =>
-																			updateOption("ports", event.target.value)
-																		}
-																	/>
-																	<span className="text-[11px] text-muted-foreground">
-																		Deja vacío para usar los puertos
-																		predeterminados de Nmap.
-																	</span>
-																</FieldLabel>
-															)}
-															{group === "Descubrimiento" && (
-																<FieldLabel
-																	label="Objetivos"
-																	hint="Se puede usar IP, hostname o CIDR. Separa varios con coma o espacio."
-																>
-																	<Textarea
-																		className="min-h-16 resize-y font-mono text-xs"
-																		placeholder="192.168.1.10\n192.168.1.0/24"
-																		value={config.targets.join("\n")}
-																		onChange={(event) =>
-																			updateTargets(event.target.value)
-																		}
-																	/>
-																</FieldLabel>
-															)}
-															{groupOptions.map((option) => {
-																const value = config.values[option.id];
-																return (
-																	<div
-																		key={option.id}
-																		className="flex items-start justify-between gap-4 rounded-lg border px-3 py-2.5 transition-colors hover:bg-muted/25"
+											<Tabs
+												value={activeGroup}
+												onValueChange={(value) =>
+													setActiveGroup(value as NmapGroup)
+												}
+											>
+												<ScrollArea className="w-full whitespace-nowrap pb-2">
+													<TabsList className="h-auto w-max justify-start gap-1 bg-transparent p-0">
+														{nmapGroups.map((group) => (
+															<TabsTrigger
+																className="h-8 rounded-md border border-transparent px-2.5 text-xs data-[state=active]:border-border data-[state=active]:bg-background"
+																key={group}
+																value={group}
+															>
+																{group}
+															</TabsTrigger>
+														))}
+													</TabsList>
+												</ScrollArea>
+												{nmapGroups.map((group) => (
+													<TabsContent
+														key={group}
+														value={group}
+														className="mt-2"
+													>
+														<ScrollArea className="h-[320px] pr-3">
+															<div className="grid gap-2">
+																{group === "Puertos" && (
+																	<FieldLabel label="Puertos o rangos">
+																		<Input
+																			className="font-mono"
+																			placeholder="22,80,443,8000-8100"
+																			value={String(config.values.ports ?? "")}
+																			onChange={(event) =>
+																				updateOption(
+																					"ports",
+																					event.target.value,
+																				)
+																			}
+																		/>
+																		<span className="text-[11px] text-muted-foreground">
+																			Deja vacío para usar los puertos
+																			predeterminados de Nmap.
+																		</span>
+																	</FieldLabel>
+																)}
+																{group === "Descubrimiento" && (
+																	<FieldLabel
+																		label="Objetivos"
+																		hint="Se puede usar IP, hostname o CIDR. Separa varios con coma o espacio."
 																	>
-																		<div className="min-w-0">
-																			<div className="flex flex-wrap items-center gap-2">
-																				<span className="text-[13px] font-medium">
-																					{option.label}
-																				</span>
-																				<code className="text-[10px] text-primary">
-																					{option.flags.join(" / ")}
-																				</code>
+																		<Textarea
+																			className="min-h-16 resize-y font-mono text-xs"
+																			placeholder="192.168.1.10\n192.168.1.0/24"
+																			value={config.targets.join("\n")}
+																			onChange={(event) =>
+																				updateTargets(event.target.value)
+																			}
+																		/>
+																	</FieldLabel>
+																)}
+																{groupOptions.map((option) => {
+																	const value = config.values[option.id];
+																	return (
+																		<div
+																			key={option.id}
+																			className="flex items-start justify-between gap-4 rounded-lg border px-3 py-2.5 transition-colors hover:bg-muted/25"
+																		>
+																			<div className="min-w-0">
+																				<div className="flex flex-wrap items-center gap-2">
+																					<span className="text-[13px] font-medium">
+																						{option.label}
+																					</span>
+																					<code className="text-[10px] text-primary">
+																						{option.flags.join(" / ")}
+																					</code>
+																				</div>
+																				<p className="mb-0 mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+																					{option.description}
+																				</p>
 																			</div>
-																			<p className="mb-0 mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
-																				{option.description}
-																			</p>
-																		</div>
-																		{option.optionalValue ? (
-																			<div className="flex shrink-0 items-center gap-2">
+																			{option.optionalValue ? (
+																				<div className="flex shrink-0 items-center gap-2">
+																					<Checkbox
+																						aria-label={`Activar ${option.label}`}
+																						checked={
+																							value !== undefined &&
+																							value !== false
+																						}
+																						onCheckedChange={(checked) =>
+																							updateOption(
+																								option.id,
+																								checked === true
+																									? typeof value === "string"
+																										? value
+																										: true
+																									: false,
+																							)
+																						}
+																					/>
+																					<Input
+																						aria-label={`${option.label} ${option.value}`}
+																						className="h-8 w-[125px] font-mono text-[11px]"
+																						placeholder={
+																							option.valueHint ?? option.value
+																						}
+																						value={
+																							typeof value === "string"
+																								? value
+																								: ""
+																						}
+																						disabled={
+																							value === undefined ||
+																							value === false
+																						}
+																						onChange={(event) =>
+																							updateOption(
+																								option.id,
+																								event.target.value,
+																							)
+																						}
+																					/>
+																				</div>
+																			) : option.value ? (
+																				Array.isArray(value) ? (
+																					<Textarea
+																						aria-label={`${option.label} ${option.value}`}
+																						className="min-h-12 w-[145px] shrink-0 resize-y font-mono text-[11px]"
+																						placeholder={`Un valor por línea`}
+																						value={value.join("\n")}
+																						onChange={(event) =>
+																							updateOption(
+																								option.id,
+																								event.target.value.split("\n"),
+																							)
+																						}
+																					/>
+																				) : (
+																					<Input
+																						aria-label={`${option.label} ${option.value}`}
+																						className="h-8 w-[145px] shrink-0 font-mono text-[11px]"
+																						placeholder={
+																							option.valueHint ?? option.value
+																						}
+																						value={
+																							typeof value === "string"
+																								? value
+																								: ""
+																						}
+																						onChange={(event) =>
+																							updateOption(
+																								option.id,
+																								event.target.value,
+																							)
+																						}
+																					/>
+																				)
+																			) : (
 																				<Checkbox
-																					aria-label={`Activar ${option.label}`}
-																					checked={
-																						value !== undefined &&
-																						value !== false
-																					}
+																					className="mt-1 shrink-0"
+																					checked={value === true}
 																					onCheckedChange={(checked) =>
 																						updateOption(
 																							option.id,
-																							checked === true
-																								? typeof value === "string"
-																									? value
-																									: true
-																								: false,
+																							checked === true,
 																						)
 																					}
 																				/>
-																				<Input
-																					aria-label={`${option.label} ${option.value}`}
-																					className="h-8 w-[125px] font-mono text-[11px]"
-																					placeholder={
-																						option.valueHint ?? option.value
-																					}
-																					value={
-																						typeof value === "string"
-																							? value
-																							: ""
-																					}
-																					disabled={
-																						value === undefined ||
-																						value === false
-																					}
-																					onChange={(event) =>
-																						updateOption(
-																							option.id,
-																							event.target.value,
-																						)
-																					}
-																				/>
-																			</div>
-																		) : option.value ? (
-																			Array.isArray(value) ? (
-																				<Textarea
-																					aria-label={`${option.label} ${option.value}`}
-																					className="min-h-12 w-[145px] shrink-0 resize-y font-mono text-[11px]"
-																					placeholder={`Un valor por línea`}
-																					value={value.join("\n")}
-																					onChange={(event) =>
-																						updateOption(
-																							option.id,
-																							event.target.value.split("\n"),
-																						)
-																					}
-																				/>
-																			) : (
-																				<Input
-																					aria-label={`${option.label} ${option.value}`}
-																					className="h-8 w-[145px] shrink-0 font-mono text-[11px]"
-																					placeholder={
-																						option.valueHint ?? option.value
-																					}
-																					value={
-																						typeof value === "string"
-																							? value
-																							: ""
-																					}
-																					onChange={(event) =>
-																						updateOption(
-																							option.id,
-																							event.target.value,
-																						)
-																					}
-																				/>
-																			)
-																		) : (
-																			<Checkbox
-																				className="mt-1 shrink-0"
-																				checked={value === true}
-																				onCheckedChange={(checked) =>
-																					updateOption(
-																						option.id,
-																						checked === true,
-																					)
-																				}
-																			/>
-																		)}
-																	</div>
-																);
-															})}
-															{!groupOptions.length &&
-																group !== "Descubrimiento" && (
-																	<p className="py-8 text-center text-xs text-muted-foreground">
-																		No hay parámetros que coincidan.
-																	</p>
-																)}
+																			)}
+																		</div>
+																	);
+																})}
+																{!groupOptions.length &&
+																	group !== "Descubrimiento" && (
+																		<p className="py-8 text-center text-xs text-muted-foreground">
+																			No hay parámetros que coincidan.
+																		</p>
+																	)}
+															</div>
+														</ScrollArea>
+													</TabsContent>
+												))}
+											</Tabs>
+											<Separator className="my-3" />
+											<FieldLabel
+												label="Argumentos avanzados sin mapear"
+												hint="Se preservan en el comando; Nmap valida las opciones no catalogadas."
+											>
+												<Input
+													className="font-mono text-xs"
+													placeholder="--opcion-adicional valor"
+													value={config.unknown.map(quoteArg).join(" ")}
+													onChange={(event) => {
+														try {
+															updateConfig({
+																...config,
+																unknown: event.target.value
+																	? tokenizeCommand(event.target.value)
+																	: [],
+															});
+														} catch (error) {
+															setCommandError(
+																error instanceof Error
+																	? error.message
+																	: "Revisa las comillas de los argumentos.",
+															);
+														}
+													}}
+												/>
+											</FieldLabel>
+											<Button
+												className="mt-3"
+												size="sm"
+												variant="outline"
+												onClick={() => updateOption("output-xml", "-")}
+											>
+												<ArrowDownToLine className="mr-2 size-3.5" />
+												Capturar XML para el inventario
+											</Button>
+										</div>
+										<div className="flex min-w-0 flex-col bg-muted/10">
+											<div className="flex items-center justify-between border-b px-6 py-3">
+												<div className="flex items-center gap-2">
+													<Terminal className="size-4 text-primary" />
+													<div>
+														<div className="text-sm font-medium">
+															Comando de terminal
 														</div>
-													</ScrollArea>
-												</TabsContent>
-											))}
-										</Tabs>
-										<Separator className="my-3" />
-										<FieldLabel
-											label="Argumentos avanzados sin mapear"
-											hint="Se preservan en el comando; Nmap valida las opciones no catalogadas."
-										>
-											<Input
-												className="font-mono text-xs"
-												placeholder="--opcion-adicional valor"
-												value={config.unknown.map(quoteArg).join(" ")}
-												onChange={(event) => {
-													try {
-														updateConfig({
-															...config,
-															unknown: event.target.value
-																? tokenizeCommand(event.target.value)
-																: [],
-														});
-													} catch (error) {
-														setCommandError(
-															error instanceof Error
-																? error.message
-																: "Revisa las comillas de los argumentos.",
-														);
-													}
-												}}
-											/>
-										</FieldLabel>
-										<Button
-											className="mt-3"
-											size="sm"
-											variant="outline"
-											onClick={() => updateOption("output-xml", "-")}
-										>
-											<ArrowDownToLine className="mr-2 size-3.5" />
-											Capturar XML para el inventario
-										</Button>
-									</div>
-									<div className="flex min-w-0 flex-col bg-muted/10">
-										<div className="flex items-center justify-between border-b px-6 py-3">
-											<div className="flex items-center gap-2">
-												<Terminal className="size-4 text-primary" />
-												<div>
-													<div className="text-sm font-medium">
-														Comando de terminal
-													</div>
-													<div className="text-[11px] text-muted-foreground">
-														Argumentos POSIX · ⌃Espacio completa
+														<div className="text-[11px] text-muted-foreground">
+															Argumentos POSIX · ⌃Espacio completa
+														</div>
 													</div>
 												</div>
+												<Button
+													variant="ghost"
+													size="icon"
+													title="Restablecer opciones"
+													onClick={() => updateConfig(emptyNmapConfig())}
+												>
+													<Trash2 className="size-4" />
+												</Button>
 											</div>
-											<Button
-												variant="ghost"
-												size="icon"
-												title="Restablecer opciones"
-												onClick={() => updateConfig(emptyNmapConfig())}
-											>
-												<Trash2 className="size-4" />
-											</Button>
-										</div>
-										<div className="min-h-[180px] flex-1 p-1">
-											<Suspense
-												fallback={
-													<div className="p-4 font-mono text-xs text-muted-foreground">
-														Preparando editor…
-													</div>
-												}
-											>
-												<NmapCommandEditor
-													value={command}
-													onChange={changeCommand}
-													targetSuggestions={project?.targets.map(
-														(target) => target.value,
-													)}
-												/>
-											</Suspense>
-										</div>
-										<div className="flex flex-wrap items-center justify-between gap-2 border-t px-6 py-3">
-											<div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-												<Command className="size-3.5" />
-												Se ejecuta con argumentos separados, sin shell
+											<div className="min-h-[180px] flex-1 p-1">
+												<Suspense
+													fallback={
+														<div className="p-4 font-mono text-xs text-muted-foreground">
+															Preparando editor…
+														</div>
+													}
+												>
+													<NmapCommandEditor
+														value={command}
+														onChange={changeCommand}
+														targetSuggestions={project?.targets.map(
+															(target) => target.value,
+														)}
+													/>
+												</Suspense>
 											</div>
-											<Button
-												variant="outline"
-												size="sm"
-												onClick={() => navigator.clipboard.writeText(command)}
-											>
-												<Command className="mr-2 size-3.5" />
-												Copiar comando
-											</Button>
+											<div className="flex flex-wrap items-center justify-between gap-2 border-t px-6 py-3">
+												<div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+													<Command className="size-3.5" />
+													Se ejecuta con argumentos separados, sin shell
+												</div>
+												<Button
+													variant="outline"
+													size="sm"
+													onClick={() => navigator.clipboard.writeText(command)}
+												>
+													<Command className="mr-2 size-3.5" />
+													Copiar comando
+												</Button>
+											</div>
 										</div>
 									</div>
-								</div>
+								)}
 							</CardContent>
 						</Card>
+						{commandScanSummary?.warning && (
+							<Alert className="mb-5">
+								<AlertTitle>{commandScanSummary.label}</AlertTitle>
+								<AlertDescription>
+									{commandScanSummary.warning}
+								</AlertDescription>
+							</Alert>
+						)}
 						<div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card px-6 py-3.5">
 							<label
 								htmlFor="authorized-scope"
@@ -1326,6 +1415,11 @@ function Workspace() {
 												{currentRun
 													? `Última ejecución · ${new Date(currentRun.date).toLocaleString()}`
 													: "Resultados detectados en esta ejecución"}
+												{resultScanSummary && (
+													<span className="mt-1 block">
+														{resultScanSummary.label}
+													</span>
+												)}
 											</CardDescription>
 										</div>
 										<Badge variant="secondary">
@@ -1338,11 +1432,25 @@ function Workspace() {
 														.length,
 												0,
 											)}{" "}
-											puertos abiertos
+											abiertos confirmados en este escaneo
 										</Badge>
 									</div>
 								</CardHeader>
 								<CardContent className="min-w-0">
+									{resultScanSummary?.warning && (
+										<Alert className="mb-4">
+											<AlertTitle>
+												Este resultado no comprueba todos los servicios
+											</AlertTitle>
+											<AlertDescription>
+												{resultScanSummary.warning}
+											</AlertDescription>
+										</Alert>
+									)}
+									<p className="mb-4 text-xs text-muted-foreground">
+										Solo se muestran los puertos reportados por esta ejecución;
+										no es un inventario completo del servidor.
+									</p>
 									<Table className="table-fixed">
 										<TableHeader>
 											<TableRow>
@@ -1404,7 +1512,8 @@ function Workspace() {
 																	))
 																) : (
 																	<span className="text-xs text-muted-foreground">
-																		Sin puertos abiertos reportados
+																		Sin puertos abiertos confirmados en este
+																		escaneo
 																	</span>
 																)}
 															</div>

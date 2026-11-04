@@ -332,7 +332,7 @@ function ProjectPlan({
 			["Coordinación", `${saved.contactName} · ${saved.contactChannel}`],
 			["Incidentes", `${saved.incidentName} · ${saved.incidentChannel}`],
 			[
-				"Reconocimiento pasivo en fuentes públicas",
+				"Reconocimiento pasivo (fuentes públicas y consultas DNS)",
 				saved.passiveRecon ? "Permitido" : "No permitido",
 			],
 			[
@@ -588,7 +588,7 @@ function ProjectPlan({
 											update("passiveRecon", checked === true)
 										}
 									/>
-									Reconocimiento pasivo en fuentes públicas
+									Reconocimiento pasivo (fuentes públicas y consultas DNS)
 								</label>
 								{Object.entries(scopeTechniques).map(([key, label]) => (
 									<label

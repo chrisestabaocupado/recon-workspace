@@ -12,7 +12,7 @@ El flujo consta de cuatro etapas: **Alcance y planificación → Reconocimiento 
 
 Consulta [Alcance y planificación](docs/ALCANCE-PLANIFICACION.md) para el flujo y las comprobaciones que aplica el MVP. Antes de una ejecución de red es necesario un plan aprobado y un comando dentro de sus límites. La autorización real y sus datos deben completarse por el operador.
 
-Consulta [Reconocimiento](docs/RECONOCIMIENTO.md) para fuentes, filtros, sincronización curl, trazabilidad y límites. Las consultas públicas necesitan permiso pasivo explícito en el plan; la carga manual no hace solicitudes de red. Las consultas HTTPS de crt.sh y RDAP salen de Kali mediante SSH. Los futuros adaptadores activos siguen pendientes.
+Consulta [Reconocimiento](docs/RECONOCIMIENTO.md) para fuentes, filtros, sincronización curl, trazabilidad y límites. Desde la interfaz se puede consultar DNS inverso (PTR) y certificados TLS de IP individuales IPv4/IPv6, incluidas IP privadas accesibles desde Kali. DNS y las consultas públicas necesitan permiso pasivo explícito; TLS necesita permisos TCP/servicios y puerto autorizado. crt.sh y RDAP solo admiten dominios. Todo se ejecuta en Kali por SSH; la carga manual no hace solicitudes de red.
 
 Consulta [Informes](docs/INFORMES.md) para contenido, exportación, trazabilidad y limitaciones. Se ha eliminado el módulo de análisis y sus adaptadores, rutas y pruebas exclusivas. Al cargar o importar un workspace antiguo se descartan sus datos de análisis y permisos específicos; se conservan los proyectos, planes, reconocimiento, ejecuciones Nmap e incidencias de las fases vigentes. Exporta una copia con la versión anterior si necesitas conservar el análisis retirado.
 
@@ -47,6 +47,8 @@ La página **Preparación del entorno** (`/preparacion`) aparece encima de las f
 La configuración SSH se comparte entre todas las fases. Cada operación abre una sesión con la huella fijada; no existe ejecución local ni alternativa automática en tu PC. Al recargar, se comprueba automáticamente la configuración guardada si está completa y tiene una huella aceptada. La verificación dura 15 minutos, se vincula a todos los campos de conexión y se renueva automáticamente al caducar. Si falla, se muestra el motivo y se espera un reintento manual. Un cambio de host o puerto borra la huella anterior. Las operaciones ya iniciadas mantienen su ejecutor original. La frase de una clave cifrada permanece solo en memoria: después de recargar puede ser necesario introducirla de nuevo. No se persisten tokens ni se acepta automáticamente una huella nueva.
 
 La ruta de clave corresponde a la máquina Windows que ejecuta el servidor de la app. El runner remoto se copia al directorio del usuario en Kali y ejecuta Nmap con una lista de argumentos, sin construir una orden de shell a partir del texto escrito.
+
+El botón **Terminal** del navbar abre un shell interactivo en ese mismo Kali, con la configuración SSH verificada. Al cerrar el diálogo se desconecta su sesión. Es una consola manual: los comandos no se validan contra el plan ni se incorporan a los informes. Consulta [Terminal remota](docs/TERMINAL.md) para uso, límites y precauciones.
 
 ## Datos locales
 

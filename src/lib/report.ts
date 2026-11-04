@@ -179,7 +179,7 @@ export function buildProjectReport(
 								.join(", "),
 						],
 						[
-							"Fuentes públicas pasivas",
+							"Fuentes públicas pasivas y consultas DNS",
 							plan.passiveRecon ? "Permitidas" : "No permitidas",
 						],
 						[

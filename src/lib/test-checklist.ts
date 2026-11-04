@@ -1,7 +1,8 @@
 import type { ExecutionView } from "./execution.ts";
 import { parseNmapCommand } from "./nmap-command.ts";
 import { makeFailure } from "./operation-history.ts";
-import { publicDomain, type ReconEvidence } from "./recon.ts";
+import { type ReconEvidence, reconTarget } from "./recon.ts";
+import { addressRange } from "./scope.ts";
 import type { RunSummary, WorkspaceData, WorkspaceProject } from "./storage.ts";
 
 export const checkKinds = {
@@ -131,7 +132,7 @@ export function evidenceCheck(e: ReconEvidence): CheckAttempt {
 		e.source === "dns"
 			? e.facts.some(
 					(f) =>
-						["A", "AAAA", "CNAME", "MX", "NS", "TXT", "SOA"].includes(
+						["A", "AAAA", "CNAME", "MX", "NS", "TXT", "SOA", "PTR"].includes(
 							f.label,
 						) &&
 						f.value.trim() &&
@@ -146,7 +147,8 @@ export function evidenceCheck(e: ReconEvidence): CheckAttempt {
 	if (e.source === "tls") {
 		try {
 			const port = new URL(e.sourceUrl).port;
-			if (port) target += `:${port}`;
+			if (port)
+				target = `${target.includes(":") ? `[${target}]` : target}:${port}`;
 		} catch {
 			/* Legacy evidence may omit the URL. */
 		}
@@ -342,17 +344,19 @@ export function projectChecklist(
 			command: active.command,
 		});
 	if (phase === "recon") {
-		const domains = new Set(
+		const targets = new Set(
 			(project.plan?.includes ?? []).flatMap((target) => {
 				try {
-					return [publicDomain(target)];
+					return [reconTarget(target)];
 				} catch {
 					return [];
 				}
 			}),
 		);
-		for (const domain of domains)
-			for (const kind of ["dns", "tls", "crtsh", "rdap"] as const) {
+		for (const domain of targets)
+			for (const kind of addressRange(domain)
+				? (["dns", "tls"] as const)
+				: (["dns", "tls", "crtsh", "rdap"] as const)) {
 				const k = key({ kind, target: domain });
 				if (!rows.has(k))
 					rows.set(k, {

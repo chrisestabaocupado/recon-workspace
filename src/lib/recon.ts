@@ -13,7 +13,7 @@ import {
 export const reconSources = {
 	crtsh: "Certificados · crt.sh",
 	rdap: "Registro · RDAP",
-	dns: "DNS · resolución y registros",
+	dns: "DNS · registros / inverso (PTR)",
 	tls: "TLS · certificado del servicio",
 	manual: "Evidencia manual",
 } as const;
@@ -79,9 +79,17 @@ export function publicDomain(value: string): string {
 		/^(?:example\.(?:com|net|org)|localhost)$/.test(domain)
 	)
 		throw new Error(
-			"Indica un dominio público exacto. Para IP, redes o nombres internos usa evidencia manual.",
+			"Esta fuente requiere un dominio público exacto. Para una IP individual selecciona DNS inverso o TLS; para redes o nombres internos usa evidencia manual.",
 		);
 	return domain;
+}
+export function reconTarget(value: string): string {
+	const target = normalizeScopeEntry(value);
+	if (target.includes("/"))
+		throw new Error(
+			"Indica un dominio público o una IP individual, no una red CIDR.",
+		);
+	return addressRange(target) ? target : publicDomain(target);
 }
 export function validateReconQuery(value: unknown): ReconQuery {
 	if (!value || typeof value !== "object" || Array.isArray(value))
@@ -111,7 +119,10 @@ export function validateReconQuery(value: unknown): ReconQuery {
 		throw new Error("El timeout debe estar entre 5 y 60 segundos.");
 	return {
 		source: query.source,
-		domain: publicDomain(query.domain),
+		domain:
+			query.source === "dns" || query.source === "tls"
+				? reconTarget(query.domain)
+				: publicDomain(query.domain),
 		subdomains: query.subdomains,
 		timeoutSeconds: query.timeoutSeconds,
 		...(query.source === "tls" ? { port: query.port ?? 443 } : {}),
@@ -130,7 +141,7 @@ export function reconQueryIssues(
 	}
 	if (!plan || plan.status !== "approved")
 		return [
-			"Completa y aprueba el plan de alcance antes de consultar fuentes externas.",
+			"Completa y aprueba el plan de alcance antes de ejecutar reconocimiento.",
 		];
 	const issues = approvalIssues(plan, now);
 	if (validated.source === "tls") {
@@ -147,7 +158,7 @@ export function reconQueryIssues(
 			issues.push("El puerto TLS no está permitido en el plan.");
 	} else if (!plan.passiveRecon)
 		issues.push(
-			"Habilita Reconocimiento pasivo en fuentes públicas en las reglas del plan y registra su nueva aprobación.",
+			"Habilita Reconocimiento pasivo (fuentes públicas y consultas DNS) en las reglas del plan y registra su nueva aprobación.",
 		);
 	if (now < Date.parse(plan.windowStart))
 		issues.push("La ventana de pruebas todavía no ha comenzado.");
@@ -162,7 +173,8 @@ export function reconQueryIssues(
 export function reconQueryUrl(query: ReconQuery): string {
 	const q = validateReconQuery(query);
 	if (q.source === "dns") return "";
-	if (q.source === "tls") return `https://${q.domain}:${q.port}/`;
+	if (q.source === "tls")
+		return `https://${q.domain.includes(":") ? `[${q.domain}]` : q.domain}:${q.port}/`;
 	if (q.source === "rdap") return `https://rdap.org/domain/${q.domain}`;
 	const url = new URL("https://crt.sh/");
 	url.searchParams.set("q", q.subdomains ? `%.${q.domain}` : q.domain);
@@ -171,6 +183,9 @@ export function reconQueryUrl(query: ReconQuery): string {
 }
 export function buildReconCommand(query: ReconQuery): string {
 	const q = validateReconQuery(query);
+	const ip = addressRange(q.domain);
+	if (q.source === "dns" && ip)
+		return `dig +time=${q.timeoutSeconds} +tries=1 -x ${quoteArg(q.domain)} +noall +answer`;
 	if (q.source === "dns")
 		return ["A", "AAAA", "CNAME", "MX", "NS", "TXT", "SOA"]
 			.map(
@@ -179,7 +194,7 @@ export function buildReconCommand(query: ReconQuery): string {
 			)
 			.join("\n");
 	if (q.source === "tls")
-		return `timeout ${q.timeoutSeconds}s openssl s_client -connect ${quoteArg(`${q.domain}:${q.port}`)} -servername ${quoteArg(q.domain)} -showcerts </dev/null`;
+		return `timeout ${q.timeoutSeconds}s openssl s_client -connect ${quoteArg(`${ip?.kind === "ipv6" ? `[${q.domain}]` : q.domain}:${q.port}`)} ${ip ? "-noservername" : `-servername ${quoteArg(q.domain)}`} -showcerts </dev/null`;
 	return [
 		"curl",
 		"--fail",
@@ -664,18 +679,64 @@ export function parseDnsResult(
 	};
 }
 
+export function parsePtrResult(
+	payload: unknown,
+	address: string,
+): Pick<ReconResult, "facts" | "warnings" | "assets" | "issues"> {
+	address = reconTarget(address);
+	if (!addressRange(address)) throw new Error("DNS inverso requiere una IP.");
+	const response = object(payload, "DNS inverso");
+	if (response.address !== address)
+		throw new Error("Respuesta DNS inversa de una IP distinta.");
+	const values = list(response.names, 100, "Nombres PTR");
+	const names = values.map((value) => {
+		const name = normalizeScopeEntry(text(value, "Nombre PTR", 253));
+		if (addressRange(name)) throw new Error("Nombre PTR inválido.");
+		return name;
+	});
+	let result = [...new Set(names)].join("\n") || "Sin registros PTR";
+	if (response.error !== undefined) {
+		const code = text(response.error, "Error PTR", 100);
+		if (names.length) throw new Error("Respuesta PTR contradictoria.");
+		if (!["ENODATA", "ENOTFOUND"].includes(code))
+			throw new Error(`No se pudo consultar DNS inverso desde Kali (${code}).`);
+		result = `Sin registros PTR (${code})`;
+	}
+	return {
+		facts: [
+			{ label: "IP consultada", value: address },
+			{ label: "PTR", value: result.slice(0, 8192) },
+			{
+				label: "Resolvedores usados en Kali",
+				value: list(response.resolvers, 20, "Resolvedores")
+					.map((value) => text(value, "Resolvedor", 100))
+					.join(", "),
+			},
+		],
+		warnings: [
+			"Los nombres PTR son candidatos, pueden ser internos o estar desactualizados. No se resuelven ni contactan automáticamente y no amplían el alcance.",
+		],
+		issues: [],
+		assets: names.length ? [address, ...new Set(names)] : [],
+	};
+}
+
 export function parseTlsResult(
 	payload: unknown,
 	domain: string,
 	address: string,
 ): Pick<ReconResult, "facts" | "warnings" | "assets" | "issues"> {
-	domain = publicDomain(domain);
+	domain = reconTarget(domain);
 	const cert = object(payload, "Certificado TLS");
 	if (cert.address !== address || typeof cert.authorized !== "boolean")
 		throw new Error("Respuesta TLS inválida o destino distinto.");
 	const warnings = [
 		"Lectura activa: se realizó una conexión TLS al servicio. Los nombres del certificado no amplían el alcance.",
 	];
+	if (addressRange(domain))
+		warnings.push(
+			"Conexión por IP sin SNI: el servicio puede presentar su certificado predeterminado. Se comprueba la identidad contra la IP, no contra un dominio.",
+		);
 	if (!cert.authorized)
 		warnings.push(
 			`La cadena TLS no fue validada: ${text(cert.authorizationError, "Validación TLS", 2048, true)}.`,

@@ -40,24 +40,45 @@ try {
 				}),
 			);
 			console.log(JSON.stringify({ rows, resolvers: resolver.getServers() }));
+		} else if (request.operation === "reverse") {
+			if (!isIP(request.address)) throw new Error("IP inválida.");
+			let names = [];
+			let error;
+			try {
+				names = await resolver.reverse(request.address);
+			} catch (failure) {
+				error = failure.code ?? "ERROR";
+			}
+			console.log(
+				JSON.stringify({
+					address: request.address,
+					names,
+					error,
+					resolvers: resolver.getServers(),
+				}),
+			);
 		} else if (request.operation === "resolve") {
 			if (
 				!Array.isArray(request.names) ||
 				request.names.length > 64 ||
-				!request.names.every(validName)
+				!request.names.every(validName) ||
+				(request.family !== undefined && request.family !== 6)
 			)
 				throw new Error("Lista DNS inválida.");
 			const entries = await Promise.all(
 				request.names.map(async (name) => [
 					name,
-					await resolver.resolve4(name),
+					await (request.family === 6
+						? resolver.resolve6(name)
+						: resolver.resolve4(name)),
 				]),
 			);
 			console.log(JSON.stringify(Object.fromEntries(entries)));
 		} else if (request.operation === "tls") {
 			if (
-				!validName(request.domain) ||
-				isIP(request.address) !== 4 ||
+				(!validName(request.domain) && !isIP(request.domain)) ||
+				!isIP(request.address) ||
+				(isIP(request.domain) && request.domain !== request.address) ||
 				!Number.isInteger(request.port) ||
 				request.port < 1 ||
 				request.port > 65535
@@ -67,7 +88,7 @@ try {
 				const socket = tls.connect({
 					host: request.address,
 					port: request.port,
-					servername: request.domain,
+					...(isIP(request.domain) ? {} : { servername: request.domain }),
 					rejectUnauthorized: false,
 				});
 				const deadline = setTimeout(

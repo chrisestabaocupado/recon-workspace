@@ -131,7 +131,7 @@ export function KaliConnectionButton() {
 			) : (
 				<Server className="size-4" />
 			)}
-			<span>
+			<span className="hidden sm:inline">
 				{kaliInstalling
 					? "Instalando en Kali…"
 					: kaliChecking

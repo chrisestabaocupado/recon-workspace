@@ -6,7 +6,7 @@ export const Route = createFileRoute("/reconocimiento")({
 	component: () => (
 		<PhasePage
 			title="Reconocimiento"
-			description="Recopila fuentes públicas, documenta activos y revisa su alcance antes de enumerar."
+			description="Consulta dominios o IP autorizadas, documenta activos y revisa su alcance antes de enumerar."
 		>
 			<ReconWorkspace />
 		</PhasePage>
